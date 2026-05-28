@@ -4,9 +4,9 @@ import axios from 'axios';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 const RANK = [
-  { label: 'Best Match', color: colors.gold.base, bg: colors.gold.dim },
-  { label: 'Runner Up',  color: '#94a3b8',         bg: 'rgba(148,163,184,0.1)' },
-  { label: 'Also Great', color: '#b45309',          bg: 'rgba(180,83,9,0.1)' },
+  { label: 'Best Match', color: colors.gold.base,  bg: colors.gold.dim },
+  { label: 'Runner Up',  color: '#6B7280',          bg: 'rgba(107,114,128,0.1)' },
+  { label: 'Also Great', color: '#059669',           bg: 'rgba(5,150,105,0.1)' },
 ];
 
 export default function RestaurantPicker() {
@@ -200,7 +200,7 @@ export default function RestaurantPicker() {
 const s = {
   page:   { minHeight: '100vh', background: colors.bg.base, padding: '28px 16px 60px', position: 'relative', overflow: 'hidden' },
   center: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  blob:   { position: 'absolute', top: '-10%', left: '-10%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(240,165,0,0.06) 0%, transparent 70%)', pointerEvents: 'none' },
+  blob:   { position: 'absolute', top: '-10%', left: '-10%', width: 500, height: 500, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,82,15,0.07) 0%, transparent 70%)', pointerEvents: 'none' },
   wrapper:{ maxWidth: 520, margin: '0 auto', position: 'relative', zIndex: 1 },
   header: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 },
   backBtn:{ width: 34, height: 34, borderRadius: radius.md, background: colors.bg.surface, border: `1px solid ${colors.border.default}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: transition.fast },
@@ -214,7 +214,7 @@ const s = {
   card:      { background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius['2xl'], overflow: 'hidden', boxShadow: shadow.card, transition: transition.base },
   imgWrap:   { position: 'relative', height: 180, overflow: 'hidden' },
   cardImg:   { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  cardImgFallback: { width: '100%', height: '100%', background: `linear-gradient(135deg, ${colors.bg.raised}, ${colors.bg.overlay})`, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  cardImgFallback: { width: '100%', height: '100%', background: `linear-gradient(135deg, #FFF0E2 0%, #FFD9B3 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   imgOverlay:{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(7,7,16,0.6) 0%, transparent 60%)' },
   rankBadge: { position: 'absolute', top: 12, left: 12, padding: '4px 11px', borderRadius: radius.full, fontSize: font.size.xs, fontWeight: font.weight.bold, backdropFilter: 'blur(8px)' },
   scoreWrap:   { position: 'absolute', bottom: 12, right: 12, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(10px)', border: `1px solid rgba(255,255,255,0.1)`, borderRadius: radius.md, padding: '6px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center' },

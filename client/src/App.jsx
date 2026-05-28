@@ -42,14 +42,14 @@ globalStyle.textContent = `
   }
 
   ::selection {
-    background: rgba(240,165,0,0.28);
-    color: #fff;
+    background: rgba(244,82,15,0.18);
+    color: #1C1C1E;
   }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
 
   input::placeholder  { color: ${colors.text.muted}; }
   textarea::placeholder { color: ${colors.text.muted}; }
@@ -116,8 +116,8 @@ globalStyle.textContent = `
   }
 
   @keyframes goldGlow {
-    0%,100% { box-shadow: 0 0 20px rgba(240,165,0,0.12), 0 4px 20px rgba(0,0,0,0.5); }
-    50%      { box-shadow: 0 0 48px rgba(240,165,0,0.3),  0 4px 20px rgba(0,0,0,0.5); }
+    0%,100% { box-shadow: 0 0 16px rgba(244,82,15,0.12), 0 2px 8px rgba(0,0,0,0.07); }
+    50%      { box-shadow: 0 0 40px rgba(244,82,15,0.28), 0 4px 16px rgba(0,0,0,0.09); }
   }
 
   @keyframes float {
@@ -214,9 +214,9 @@ globalStyle.textContent = `
   .skeleton {
     background: linear-gradient(
       90deg,
-      ${colors.bg.raised} 25%,
-      ${colors.bg.overlay} 50%,
-      ${colors.bg.raised} 75%
+      #F5EDE3 25%,
+      #EDE4D8 50%,
+      #F5EDE3 75%
     );
     background-size: 200% 100%;
     animation: shimmer 1.6s ease infinite;
@@ -229,25 +229,26 @@ globalStyle.textContent = `
   }
   .lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
   }
 
   /* ── Card glow on hover ─────────────────────────────────────────────────── */
   .card-glow {
-    transition: border-color 0.22s ease, box-shadow 0.22s ease;
+    transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
   }
   .card-glow:hover {
-    border-color: rgba(240,165,0,0.2) !important;
-    box-shadow: 0 0 0 1px rgba(240,165,0,0.1), 0 8px 32px rgba(0,0,0,0.6) !important;
+    border-color: rgba(244,82,15,0.22) !important;
+    box-shadow: 0 0 0 1px rgba(244,82,15,0.08), 0 8px 28px rgba(0,0,0,0.1) !important;
+    transform: translateY(-2px);
   }
 
-  /* ── Gold button glow ───────────────────────────────────────────────────── */
+  /* ── Orange button hover ────────────────────────────────────────────────── */
   .btn-gold {
     transition: all 0.22s ease;
   }
   .btn-gold:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 8px 32px rgba(240,165,0,0.42) !important;
+    box-shadow: 0 8px 28px rgba(244,82,15,0.38) !important;
   }
   .btn-gold:active:not(:disabled) {
     transform: translateY(0px);
@@ -255,20 +256,20 @@ globalStyle.textContent = `
 
   /* ── Focus ring ─────────────────────────────────────────────────────────── */
   .focus-ring:focus-visible {
-    outline: 2px solid rgba(240,165,0,0.6);
+    outline: 2px solid rgba(244,82,15,0.55);
     outline-offset: 2px;
   }
 
-  /* ── Gradient text ──────────────────────────────────────────────────────── */
+  /* ── Gradient text (orange) ─────────────────────────────────────────────── */
   .text-gradient-gold {
-    background: linear-gradient(135deg, #f0a500 0%, #fbbf24 60%, #fcd34d 100%);
+    background: linear-gradient(135deg, #F4520F 0%, #F97316 60%, #FB923C 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
   .text-gradient-white {
-    background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.75) 100%);
+    background: linear-gradient(135deg, #1C1C1E 0%, rgba(28,28,30,0.7) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -327,9 +328,9 @@ export default function App() {
               marginTop: 8,
               padding: '11px 24px',
               borderRadius: '12px',
-              background: 'rgba(240,165,0,0.1)',
+              background: 'rgba(244,82,15,0.08)',
               color: colors.gold.base,
-              border: '1px solid rgba(240,165,0,0.2)',
+              border: '1px solid rgba(244,82,15,0.18)',
               fontSize: 14,
               fontWeight: 600,
               textDecoration: 'none',

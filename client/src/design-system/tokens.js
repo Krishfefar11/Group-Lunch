@@ -1,83 +1,82 @@
-// ── Group Lunch Premium Design System ─────────────────────────────────────────
-// Version 2.0 — Apple × Linear × Stripe quality
-// Dark & ultra-premium theme — near-black backgrounds, gold accents
+// ── Group Lunch Food App Design System ────────────────────────────────────────
+// Light theme — warm whites, food orange accent, clean cards
 
 export const colors = {
   bg: {
-    canvas:  '#040408',   // deepest background — pure dark
-    base:    '#080810',   // page background
-    surface: '#0f0f1e',   // cards
-    raised:  '#161626',   // elevated cards, modals
-    overlay: '#1c1c30',   // dropdown overlays
-    glass:   'rgba(15,15,30,0.72)', // glassmorphism base
+    canvas:  '#F6F0E6',   // warm cream — footer, deepest surface
+    base:    '#FFF8F2',   // main page background
+    surface: '#FFFFFF',   // cards — pure white
+    raised:  '#FFF4EA',   // elevated cards, inputs
+    overlay: '#FDECD8',   // dropdown overlays
+    glass:   'rgba(255,255,255,0.92)',
   },
   border: {
-    subtle:  'rgba(255,255,255,0.04)',
-    default: 'rgba(255,255,255,0.08)',
-    strong:  'rgba(255,255,255,0.14)',
-    glow:    'rgba(240,165,0,0.3)',
-    focus:   'rgba(240,165,0,0.6)',
+    subtle:  'rgba(2,6,12,0.05)',
+    default: 'rgba(2,6,12,0.1)',
+    strong:  'rgba(2,6,12,0.18)',
+    glow:    'rgba(244,82,15,0.25)',
+    focus:   'rgba(244,82,15,0.55)',
   },
+  // "gold" key kept for backward compat — values are now food-orange
   gold: {
-    dim:     'rgba(240,165,0,0.07)',
-    muted:   'rgba(240,165,0,0.16)',
-    soft:    '#c8870a',
-    base:    '#f0a500',
-    bright:  '#fbbf24',
-    light:   '#fcd34d',
-    glow:    '0 0 32px rgba(240,165,0,0.2)',
-    glowLg:  '0 0 56px rgba(240,165,0,0.28)',
-    glowXl:  '0 0 80px rgba(240,165,0,0.35)',
-    gradient:'linear-gradient(135deg, #f0a500 0%, #fbbf24 100%)',
-    gradientDim: 'linear-gradient(135deg, rgba(240,165,0,0.12) 0%, rgba(251,191,36,0.06) 100%)',
+    dim:     'rgba(244,82,15,0.07)',
+    muted:   'rgba(244,82,15,0.14)',
+    soft:    '#C84000',
+    base:    '#F4520F',   // primary orange
+    bright:  '#F97316',
+    light:   '#FBB87A',
+    glow:    '0 0 32px rgba(244,82,15,0.18)',
+    glowLg:  '0 0 56px rgba(244,82,15,0.25)',
+    glowXl:  '0 0 80px rgba(244,82,15,0.32)',
+    gradient:'linear-gradient(135deg, #F4520F 0%, #F97316 100%)',
+    gradientDim: 'linear-gradient(135deg, rgba(244,82,15,0.09) 0%, rgba(249,115,22,0.04) 100%)',
   },
   text: {
-    primary:   '#f0f0f8',
-    secondary: '#7878a0',
-    muted:     '#3c3c60',
-    faint:     '#252540',
-    gold:      '#f0a500',
-    inverse:   '#040408',
+    primary:   '#1C1C1E',
+    secondary: '#5B5961',
+    muted:     '#9B97A2',
+    faint:     '#D0CDD6',
+    gold:      '#F4520F',   // accent text (links, highlights)
+    inverse:   '#FFFFFF',   // text on orange buttons
   },
-  veg:    '#22c55e',
-  nonVeg: '#ef4444',
+  veg:    '#0F8A65',   // classic Indian veg green
+  nonVeg: '#E23744',   // classic Indian non-veg red
   green:  {
-    base: '#10b981',
-    dim:  'rgba(16,185,129,0.1)',
-    muted:'rgba(16,185,129,0.18)',
-    text: '#34d399',
-    gradient: 'linear-gradient(135deg, #10b981, #34d399)',
+    base: '#16A34A',
+    dim:  'rgba(22,163,74,0.08)',
+    muted:'rgba(22,163,74,0.16)',
+    text: '#15803D',
+    gradient: 'linear-gradient(135deg, #16A34A, #22C55E)',
   },
   red:    {
-    base: '#ef4444',
-    dim:  'rgba(239,68,68,0.1)',
-    text: '#f87171',
+    base: '#E23744',
+    dim:  'rgba(226,55,68,0.08)',
+    text: '#C31B28',
   },
   amber:  {
-    base: '#f59e0b',
-    dim:  'rgba(245,158,11,0.1)',
-    text: '#fbbf24',
+    base: '#F59E0B',
+    dim:  'rgba(245,158,11,0.08)',
+    text: '#B45309',
   },
   blue:   {
-    base: '#6366f1',
-    dim:  'rgba(99,102,241,0.1)',
-    text: '#818cf8',
-    gradient: 'linear-gradient(135deg, #6366f1, #818cf8)',
+    base: '#2563EB',
+    dim:  'rgba(37,99,235,0.08)',
+    text: '#1D4ED8',
+    gradient: 'linear-gradient(135deg, #2563EB, #60A5FA)',
   },
   purple: {
-    base: '#8b5cf6',
-    dim:  'rgba(139,92,246,0.1)',
-    text: '#a78bfa',
+    base: '#7C3AED',
+    dim:  'rgba(124,58,237,0.08)',
+    text: '#6D28D9',
   },
-  // Accent gradients
   gradients: {
-    hero:    'linear-gradient(135deg, #0a0a18 0%, #120c20 50%, #0a1018 100%)',
-    card:    'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%)',
-    gold:    'linear-gradient(135deg, #f0a500 0%, #fbbf24 100%)',
-    goldDim: 'linear-gradient(135deg, rgba(240,165,0,0.1) 0%, rgba(251,191,36,0.05) 100%)',
-    surface: 'linear-gradient(145deg, #0f0f1e 0%, #0c0c18 100%)',
-    glow:    'radial-gradient(circle at 50% 0%, rgba(240,165,0,0.12) 0%, transparent 60%)',
-    glowBlue:'radial-gradient(circle at 50% 0%, rgba(99,102,241,0.08) 0%, transparent 60%)',
+    hero:    'linear-gradient(135deg, #FFF8F2 0%, #FFF4EA 50%, #FFF8F2 100%)',
+    card:    'linear-gradient(145deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 100%)',
+    gold:    'linear-gradient(135deg, #F4520F 0%, #F97316 100%)',
+    goldDim: 'linear-gradient(135deg, rgba(244,82,15,0.08) 0%, rgba(249,115,22,0.04) 100%)',
+    surface: 'linear-gradient(145deg, #FFFFFF 0%, #FFF8F2 100%)',
+    glow:    'radial-gradient(circle at 50% 0%, rgba(244,82,15,0.1) 0%, transparent 60%)',
+    glowBlue:'radial-gradient(circle at 50% 0%, rgba(37,99,235,0.07) 0%, transparent 60%)',
   },
 };
 
@@ -102,19 +101,19 @@ export const radius = {
 };
 
 export const shadow = {
-  xs:   '0 1px 3px rgba(0,0,0,0.4)',
-  sm:   '0 2px 8px rgba(0,0,0,0.5)',
-  md:   '0 4px 24px rgba(0,0,0,0.55)',
-  lg:   '0 8px 40px rgba(0,0,0,0.65)',
-  xl:   '0 16px 60px rgba(0,0,0,0.72)',
-  '2xl':'0 24px 80px rgba(0,0,0,0.8)',
-  card: '0 1px 0 rgba(255,255,255,0.04), 0 4px 20px rgba(0,0,0,0.5)',
-  cardHover: '0 1px 0 rgba(255,255,255,0.06), 0 8px 40px rgba(0,0,0,0.65)',
-  gold: '0 0 32px rgba(240,165,0,0.2)',
-  goldLg: '0 4px 32px rgba(240,165,0,0.35)',
-  goldXl: '0 8px 48px rgba(240,165,0,0.45)',
-  inset:'inset 0 1px 0 rgba(255,255,255,0.06)',
-  innerGlow: 'inset 0 0 24px rgba(240,165,0,0.04)',
+  xs:   '0 1px 2px rgba(0,0,0,0.06)',
+  sm:   '0 2px 6px rgba(0,0,0,0.07)',
+  md:   '0 4px 16px rgba(0,0,0,0.08)',
+  lg:   '0 8px 28px rgba(0,0,0,0.1)',
+  xl:   '0 16px 48px rgba(0,0,0,0.12)',
+  '2xl':'0 24px 64px rgba(0,0,0,0.14)',
+  card: '0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06)',
+  cardHover: '0 2px 8px rgba(0,0,0,0.08), 0 8px 28px rgba(0,0,0,0.1)',
+  gold: '0 4px 16px rgba(244,82,15,0.22)',
+  goldLg: '0 6px 24px rgba(244,82,15,0.32)',
+  goldXl: '0 10px 36px rgba(244,82,15,0.42)',
+  inset:'inset 0 1px 0 rgba(255,255,255,0.8)',
+  innerGlow: 'inset 0 0 24px rgba(244,82,15,0.04)',
 };
 
 export const font = {
@@ -192,25 +191,16 @@ export const card = {
     border:       `1px solid ${colors.border.default}`,
     borderRadius: radius.xl,
     boxShadow:    shadow.card,
-    backdropFilter: 'blur(0px)',
-  },
-  glass: {
-    background:     colors.bg.glass,
-    border:         `1px solid ${colors.border.subtle}`,
-    borderRadius:   radius.xl,
-    boxShadow:      shadow.lg,
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
   },
   raised: {
     background:   colors.bg.raised,
     border:       `1px solid ${colors.border.strong}`,
     borderRadius: radius.xl,
-    boxShadow:    shadow.lg,
+    boxShadow:    shadow.md,
   },
   gold: {
     background:   colors.bg.surface,
-    border:       `1px solid rgba(240,165,0,0.2)`,
+    border:       `1px solid rgba(244,82,15,0.2)`,
     borderRadius: radius.xl,
     boxShadow:    `${shadow.card}, ${colors.gold.glow}`,
   },
@@ -246,7 +236,7 @@ export const btnPrimary = {
   padding:        '14px 28px',
   letterSpacing:  font.tracking.snug,
   transition:     transition.base,
-  boxShadow:      `0 4px 20px rgba(240,165,0,0.3)`,
+  boxShadow:      shadow.gold,
 };
 
 export const btnSecondary = {
@@ -266,28 +256,14 @@ export const btnSecondary = {
   transition:     transition.base,
 };
 
-export const btnGhost = {
-  background:    'transparent',
-  color:         colors.text.gold,
-  border:        'none',
-  fontFamily:    font.family,
-  fontSize:      font.size.sm,
-  fontWeight:    font.weight.semibold,
-  cursor:        'pointer',
-  padding:       '8px 0',
-  letterSpacing: font.tracking.wide,
-  textTransform: 'uppercase',
-};
-
-// ── Premium label / chip helpers ──────────────────────────────────────────────
 export const chip = (variant = 'default') => {
   const variants = {
-    gold:    { bg: colors.gold.dim,    color: colors.gold.base,   border: 'rgba(240,165,0,0.2)' },
-    green:   { bg: colors.green.dim,   color: colors.green.text,  border: 'rgba(16,185,129,0.2)' },
-    red:     { bg: colors.red.dim,     color: colors.red.text,    border: 'rgba(239,68,68,0.2)' },
+    gold:    { bg: colors.gold.dim,    color: colors.gold.base,   border: 'rgba(244,82,15,0.2)' },
+    green:   { bg: colors.green.dim,   color: colors.green.text,  border: 'rgba(22,163,74,0.2)' },
+    red:     { bg: colors.red.dim,     color: colors.red.text,    border: 'rgba(226,55,68,0.2)' },
     amber:   { bg: colors.amber.dim,   color: colors.amber.text,  border: 'rgba(245,158,11,0.2)' },
-    blue:    { bg: colors.blue.dim,    color: colors.blue.text,   border: 'rgba(99,102,241,0.2)' },
-    purple:  { bg: colors.purple.dim,  color: colors.purple.text, border: 'rgba(139,92,246,0.2)' },
+    blue:    { bg: colors.blue.dim,    color: colors.blue.text,   border: 'rgba(37,99,235,0.2)' },
+    purple:  { bg: colors.purple.dim,  color: colors.purple.text, border: 'rgba(124,58,237,0.2)' },
     default: { bg: colors.bg.raised,   color: colors.text.secondary, border: colors.border.default },
   };
   const v = variants[variant] || variants.default;

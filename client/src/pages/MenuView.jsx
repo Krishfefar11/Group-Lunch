@@ -184,8 +184,8 @@ export default function MenuView() {
             style={{ ...s.cartBarBtn, opacity: submitting ? 0.7 : 1 }}
             onClick={handleSubmit}
             disabled={submitting}
-            onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = colors.text.primary; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = '#fff'; }}
+            onMouseEnter={(e) => { if (!submitting) e.currentTarget.style.background = colors.gold.soft; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = colors.gold.base; }}
           >
             {submitting ? 'Placing...' : 'Place Order →'}
           </button>
@@ -402,26 +402,27 @@ const s = {
     left:          0,
     right:         0,
     zIndex:        100,
-    background:    colors.bg.raised,
+    background:    colors.bg.surface,
     borderTop:     `1px solid ${colors.border.default}`,
     backdropFilter:'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
     display:       'flex',
     alignItems:    'center',
     justifyContent:'space-between',
     padding:       '12px 20px',
-    boxShadow:     '0 -4px 24px rgba(0,0,0,0.4)',
+    boxShadow:     '0 -4px 24px rgba(0,0,0,0.08)',
   },
   cartBarLeft:{ display: 'flex', alignItems: 'center', gap: 10 },
   cartCount:  { width: 26, height: 26, borderRadius: radius.full, background: colors.gold.base, color: colors.text.inverse, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: font.size.sm, fontWeight: font.weight.bold },
   cartBarText:{ fontSize: font.size.sm, color: colors.text.secondary, fontWeight: font.weight.medium },
   cartTotal:  { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.text.primary },
-  cartBarBtn: { background: '#fff', color: '#07070f', border: 'none', borderRadius: radius.md, padding: '9px 18px', fontSize: font.size.sm, fontWeight: font.weight.bold, cursor: 'pointer', transition: transition.base, letterSpacing: '-0.01em' },
+  cartBarBtn: { background: colors.gold.base, color: '#FFFFFF', border: 'none', borderRadius: radius.md, padding: '9px 18px', fontSize: font.size.sm, fontWeight: font.weight.bold, cursor: 'pointer', transition: transition.base, letterSpacing: '-0.01em', boxShadow: '0 2px 8px rgba(244,82,15,0.3)' },
 
   // Hero
   hero:        { position: 'relative', height: 220, overflow: 'hidden' },
   heroImg:     { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   heroOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(7,7,16,0.85) 0%, rgba(7,7,16,0.1) 60%)' },
-  heroFallback:{ width: '100%', height: '100%', background: `linear-gradient(135deg, ${colors.bg.surface}, ${colors.bg.overlay})`, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  heroFallback:{ width: '100%', height: '100%', background: `linear-gradient(135deg, #FFF0E2 0%, #FFD9B3 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   heroBack:    { position: 'absolute', top: 16, left: 16, width: 34, height: 34, borderRadius: radius.md, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', border: `1px solid rgba(255,255,255,0.15)`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   heroContent: { position: 'absolute', bottom: 16, left: 16, right: 16 },
   heroName:    { fontSize: font.size['2xl'], fontWeight: font.weight.bold, color: '#fff', letterSpacing: '-0.025em', margin: '0 0 8px', textShadow: '0 2px 8px rgba(0,0,0,0.5)' },
@@ -434,7 +435,7 @@ const s = {
   vegDot:      { width: 8, height: 8, borderRadius: '50%', background: colors.veg, flexShrink: 0 },
 
   // Category nav
-  catNavWrap: { position: 'sticky', top: 0, zIndex: 50, background: colors.bg.base, borderBottom: `1px solid ${colors.border.subtle}`, backdropFilter: 'blur(12px)' },
+  catNavWrap: { position: 'sticky', top: 0, zIndex: 50, background: 'rgba(255,248,242,0.95)', borderBottom: `1px solid ${colors.border.subtle}`, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: '0 1px 0 rgba(0,0,0,0.05)' },
   catNav:     { display: 'flex', gap: 0, overflowX: 'auto', scrollbarWidth: 'none', padding: '0 12px' },
   catTab:     { padding: '12px 14px', borderBottom: '2px solid transparent', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.text.muted, whiteSpace: 'nowrap', transition: transition.base, flexShrink: 0 },
   catTabActive:{ color: colors.text.gold, borderBottom: `2px solid ${colors.gold.base}` },

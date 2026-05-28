@@ -7,6 +7,7 @@ export default function CreateSession() {
   const navigate               = useNavigate();
   const [name, setName]        = useState('');
   const [city, setCity]        = useState('');
+  const [upiId, setUpiId]      = useState('');
   const [loading, setLoading]  = useState(false);
   const [error, setError]      = useState('');
   const [created, setCreated]  = useState(null);
@@ -19,7 +20,11 @@ export default function CreateSession() {
     setError('');
     setLoading(true);
     try {
-      const res = await createSession({ organizerName: name.trim(), deliveryCity: city.trim() });
+      const res = await createSession({
+        organizerName: name.trim(),
+        deliveryCity:  city.trim(),
+        upiId:         upiId.trim() || null,
+      });
       const { sessionId, sessionUrl, organizerId } = res.data.data;
       localStorage.setItem(`member_${sessionId}`, JSON.stringify({
         memberId: organizerId, memberName: name.trim(), isOrganizer: true,
@@ -106,7 +111,29 @@ export default function CreateSession() {
                   }}
                 />
                 <p style={{ fontSize: '11px', color: colors.text.muted, margin: '5px 0 0', lineHeight: 1.4 }}>
-                  Used to find real restaurants near you via Foursquare + OpenStreetMap
+                  Used to find real restaurants near you
+                </p>
+              </div>
+
+              <label style={{ ...s.label, marginTop: 16 }}>💸 Your UPI ID <span style={{ color: colors.text.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for split bill)</span></label>
+              <div style={{ position: 'relative', marginBottom: 8 }}>
+                <input
+                  style={s.input}
+                  type="text"
+                  placeholder="e.g. krish@paytm or 9876543210@upi"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = colors.border.focus;
+                    e.target.style.boxShadow   = '0 0 0 3px rgba(240,165,0,0.12)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = colors.border.default;
+                    e.target.style.boxShadow   = 'none';
+                  }}
+                />
+                <p style={{ fontSize: '11px', color: colors.text.muted, margin: '5px 0 0', lineHeight: 1.4 }}>
+                  Team members will get a UPI pay link to send you their share
                 </p>
               </div>
 
@@ -220,7 +247,7 @@ const s = {
     width:        520,
     height:       520,
     borderRadius: '50%',
-    background:   'radial-gradient(circle, rgba(240,165,0,0.07) 0%, transparent 70%)',
+    background:   'radial-gradient(circle, rgba(244,82,15,0.07) 0%, transparent 70%)',
     pointerEvents:'none',
   },
   blob2: {
@@ -230,7 +257,7 @@ const s = {
     width:        600,
     height:       600,
     borderRadius: '50%',
-    background:   'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)',
+    background:   'radial-gradient(circle, rgba(249,115,22,0.05) 0%, transparent 70%)',
     pointerEvents:'none',
   },
   shell: {

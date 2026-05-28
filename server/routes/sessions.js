@@ -7,7 +7,7 @@ const { Session, SessionMember } = require('../models/index');
 // Create a new lunch session (called by organizer)
 router.post('/', async (req, res) => {
   try {
-    const { organizerName, deliveryCity } = req.body;
+    const { organizerName, deliveryCity, upiId } = req.body;
     if (!organizerName || !organizerName.trim()) {
       return res.status(400).json({ success: false, message: 'Organizer name is required' });
     }
@@ -21,6 +21,7 @@ router.post('/', async (req, res) => {
       organizerId,
       organizerName:  organizerName.trim(),
       deliveryCity:   deliveryCity?.trim() || null,
+      upiId:          upiId?.trim()        || null,
       status:         'collecting',
     });
 

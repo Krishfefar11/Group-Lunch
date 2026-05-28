@@ -528,13 +528,13 @@ const s = {
   blob1: {
     position: 'absolute', top: '-10%', left: '-15%',
     width: 500, height: 500, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(240,165,0,0.05) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(244,82,15,0.06) 0%, transparent 70%)',
     pointerEvents: 'none',
   },
   blob2: {
     position: 'absolute', bottom: '-15%', right: '-10%',
     width: 500, height: 500, borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(99,102,241,0.05) 0%, transparent 70%)',
+    background: 'radial-gradient(circle, rgba(249,115,22,0.05) 0%, transparent 70%)',
     pointerEvents: 'none',
   },
   wrapper: {
@@ -800,8 +800,9 @@ const s = {
   overlay: {
     position:       'fixed',
     inset:          0,
-    background:     'rgba(0,0,0,0.65)',
-    backdropFilter: 'blur(6px)',
+    background:     'rgba(0,0,0,0.35)',
+    backdropFilter: 'blur(8px)',
+    WebkitBackdropFilter: 'blur(8px)',
     display:        'flex',
     alignItems:     'center',
     justifyContent: 'center',

@@ -82,6 +82,12 @@ const Session = sequelize.define('Session', {
     defaultValue: null,
     field: 'delivery_city',
   },
+  upiId: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    defaultValue: null,
+    field: 'upi_id',
+  },
 }, {
   tableName: 'sessions',
   timestamps: true,

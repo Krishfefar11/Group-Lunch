@@ -39,7 +39,7 @@ function FloatingEmoji({ emoji, style }) {
       position: 'absolute',
       fontSize: 28,
       animation: 'floatSlow 6s ease-in-out infinite',
-      filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))',
+      filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))',
       userSelect: 'none',
       pointerEvents: 'none',
       ...style,
@@ -59,14 +59,14 @@ function StepCard({ number, icon, title, desc, delay = 0 }) {
         animationDelay: `${delay}s`,
         opacity: 0,
         background: hovered
-          ? 'linear-gradient(145deg, rgba(240,165,0,0.06), rgba(15,15,30,0.8))'
+          ? 'linear-gradient(145deg, rgba(244,82,15,0.04), #FFFFFF)'
           : colors.bg.surface,
-        border: `1px solid ${hovered ? 'rgba(240,165,0,0.22)' : colors.border.default}`,
+        border: `1px solid ${hovered ? 'rgba(244,82,15,0.2)' : colors.border.default}`,
         borderRadius: radius['2xl'],
         padding: '28px 24px',
         transition: 'all 0.3s cubic-bezier(0.22,1,0.36,1)',
         transform: hovered ? 'translateY(-4px)' : 'translateY(0)',
-        boxShadow: hovered ? '0 12px 40px rgba(0,0,0,0.6)' : shadow.card,
+        boxShadow: hovered ? '0 12px 32px rgba(0,0,0,0.1)' : shadow.card,
         cursor: 'default',
         position: 'relative',
         overflow: 'hidden',
@@ -93,8 +93,8 @@ function StepCard({ number, icon, title, desc, delay = 0 }) {
         width: 48,
         height: 48,
         borderRadius: radius.lg,
-        background: hovered ? 'rgba(240,165,0,0.12)' : colors.bg.raised,
-        border: `1px solid ${hovered ? 'rgba(240,165,0,0.25)' : colors.border.subtle}`,
+        background: hovered ? 'rgba(244,82,15,0.1)' : colors.bg.raised,
+        border: `1px solid ${hovered ? 'rgba(244,82,15,0.22)' : colors.border.subtle}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -132,7 +132,7 @@ function StepCard({ number, icon, title, desc, delay = 0 }) {
           width: 120,
           height: 120,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(240,165,0,0.1) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(244,82,15,0.08) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
       )}
@@ -197,8 +197,8 @@ function TestimonialCard({ name, role, text, emoji, delay = 0 }) {
           width: 32,
           height: 32,
           borderRadius: radius.full,
-          background: `linear-gradient(135deg, rgba(240,165,0,0.2), rgba(240,165,0,0.08))`,
-          border: `1.5px solid rgba(240,165,0,0.25)`,
+          background: `linear-gradient(135deg, rgba(244,82,15,0.14), rgba(244,82,15,0.06))`,
+          border: `1.5px solid rgba(244,82,15,0.2)`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -257,8 +257,8 @@ export default function Home() {
                 gap: 6,
                 padding: '5px 12px',
                 borderRadius: radius.full,
-                background: serverOk ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
-                border: `1px solid ${serverOk ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+                background: serverOk ? 'rgba(22,163,74,0.08)' : 'rgba(226,55,68,0.08)',
+                border: `1px solid ${serverOk ? 'rgba(22,163,74,0.2)' : 'rgba(226,55,68,0.2)'}`,
                 fontSize: font.size.xs,
                 color: serverOk ? colors.green.text : colors.red.text,
                 fontWeight: font.weight.semibold,
@@ -379,8 +379,8 @@ export default function Home() {
             <div style={{
               padding: '3px 10px',
               borderRadius: radius.full,
-              background: 'rgba(16,185,129,0.12)',
-              border: '1px solid rgba(16,185,129,0.2)',
+              background: 'rgba(22,163,74,0.1)',
+              border: '1px solid rgba(22,163,74,0.2)',
               fontSize: 10,
               fontWeight: 700,
               color: colors.green.text,
@@ -427,9 +427,9 @@ export default function Home() {
               </span>
               <span style={{
                 fontSize: 10,
-                background: 'rgba(240,165,0,0.12)',
+                background: 'rgba(244,82,15,0.1)',
                 color: colors.gold.base,
-                border: '1px solid rgba(240,165,0,0.25)',
+                border: '1px solid rgba(244,82,15,0.22)',
                 borderRadius: 4,
                 padding: '2px 7px',
                 fontWeight: 700,
@@ -446,11 +446,11 @@ export default function Home() {
           </div>
 
           {/* Progress bar */}
-          <div style={{ height: 3, background: colors.bg.overlay, borderRadius: 99, overflow: 'hidden', marginTop: 8 }}>
+          <div style={{ height: 4, background: colors.border.subtle, borderRadius: 99, overflow: 'hidden', marginTop: 8 }}>
             <div style={{
               height: '100%',
               width: '75%',
-              background: `linear-gradient(90deg, ${colors.gold.soft}, ${colors.gold.bright})`,
+              background: `linear-gradient(90deg, ${colors.gold.base}, ${colors.gold.bright})`,
               borderRadius: 99,
               animation: 'progressFill 1.5s ease 1s both',
             }} />
@@ -543,8 +543,8 @@ export default function Home() {
                 width: 52,
                 height: 52,
                 borderRadius: radius.xl,
-                background: 'rgba(240,165,0,0.1)',
-                border: '1px solid rgba(240,165,0,0.2)',
+                background: 'rgba(244,82,15,0.08)',
+                border: '1px solid rgba(244,82,15,0.18)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -588,8 +588,8 @@ export default function Home() {
                       width: 18,
                       height: 18,
                       borderRadius: '50%',
-                      background: 'rgba(16,185,129,0.12)',
-                      border: '1px solid rgba(16,185,129,0.25)',
+                      background: 'rgba(22,163,74,0.1)',
+                      border: '1px solid rgba(22,163,74,0.22)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -674,11 +674,11 @@ export default function Home() {
       <section style={s.ctaSection}>
         <div style={s.ctaSectionInner}>
 
-          {/* Glow */}
+          {/* Warm glow */}
           <div style={{
             position: 'absolute',
             inset: 0,
-            background: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(240,165,0,0.1) 0%, transparent 70%)',
+            background: 'radial-gradient(ellipse 80% 60% at 50% 50%, rgba(244,82,15,0.07) 0%, transparent 70%)',
             pointerEvents: 'none',
           }} />
 
@@ -807,7 +807,7 @@ const s = {
     width:        700,
     height:       700,
     borderRadius: '50%',
-    background:   'radial-gradient(circle, rgba(240,165,0,0.07) 0%, transparent 65%)',
+    background:   'radial-gradient(circle, rgba(244,82,15,0.07) 0%, transparent 65%)',
     pointerEvents:'none',
     animation:    'blobPulse 12s ease-in-out infinite',
   },
@@ -818,7 +818,7 @@ const s = {
     width:        800,
     height:       800,
     borderRadius: '50%',
-    background:   'radial-gradient(circle, rgba(99,102,241,0.05) 0%, transparent 65%)',
+    background:   'radial-gradient(circle, rgba(249,115,22,0.05) 0%, transparent 65%)',
     pointerEvents:'none',
     animation:    'blobPulse 16s ease-in-out infinite reverse',
   },
@@ -829,30 +829,29 @@ const s = {
     width:        500,
     height:       500,
     borderRadius: '50%',
-    background:   'radial-gradient(circle, rgba(16,185,129,0.03) 0%, transparent 65%)',
+    background:   'radial-gradient(circle, rgba(22,163,74,0.04) 0%, transparent 65%)',
     pointerEvents:'none',
     animation:    'blobPulse 20s ease-in-out infinite 4s',
   },
   bgGrid: {
     position:    'fixed',
     inset:       0,
-    backgroundImage: `linear-gradient(rgba(255,255,255,0.016) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(255,255,255,0.016) 1px, transparent 1px)`,
-    backgroundSize: '60px 60px',
+    backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.035) 1px, transparent 1px)`,
+    backgroundSize: '40px 40px',
     pointerEvents: 'none',
-    maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)',
-    WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)',
+    opacity: 0.6,
   },
 
-  // Nav
+  // Nav — warm white glass bar
   nav: {
     position:   'sticky',
     top:        0,
     zIndex:     100,
-    background: 'rgba(8,8,16,0.82)',
+    background: 'rgba(255,248,242,0.92)',
     backdropFilter: 'blur(20px)',
     WebkitBackdropFilter: 'blur(20px)',
     borderBottom: `1px solid ${colors.border.subtle}`,
+    boxShadow: '0 1px 0 rgba(0,0,0,0.05)',
   },
   navInner: {
     maxWidth:       1100,
@@ -914,8 +913,8 @@ const s = {
     gap:           7,
     padding:       '6px 14px',
     borderRadius:  radius.full,
-    background:    'rgba(240,165,0,0.08)',
-    border:        '1px solid rgba(240,165,0,0.2)',
+    background:    'rgba(244,82,15,0.08)',
+    border:        '1px solid rgba(244,82,15,0.18)',
     fontSize:      font.size.xs,
     fontWeight:    font.weight.semibold,
     color:         colors.gold.base,
@@ -986,7 +985,7 @@ const s = {
     border:       `1px solid ${colors.border.default}`,
     borderRadius: radius['3xl'],
     padding:      '20px',
-    boxShadow:    `${shadow.xl}, 0 0 60px rgba(240,165,0,0.08)`,
+    boxShadow:    `${shadow.xl}, 0 0 40px rgba(244,82,15,0.08)`,
     position:     'relative',
     overflow:     'hidden',
     marginLeft:   'auto',
@@ -1029,8 +1028,8 @@ const s = {
     flexShrink:     0,
   },
   previewReco: {
-    background:   'rgba(240,165,0,0.06)',
-    border:       '1px solid rgba(240,165,0,0.15)',
+    background:   'rgba(244,82,15,0.06)',
+    border:       '1px solid rgba(244,82,15,0.14)',
     borderRadius: radius.lg,
     padding:      '12px 14px',
     marginBottom: 12,
@@ -1058,7 +1057,7 @@ const s = {
   statsBar: {
     borderTop:    `1px solid ${colors.border.subtle}`,
     borderBottom: `1px solid ${colors.border.subtle}`,
-    background:   'rgba(15,15,30,0.5)',
+    background:   colors.bg.surface,
     position:     'relative',
     zIndex:       1,
   },
@@ -1110,8 +1109,8 @@ const s = {
     display:       'inline-block',
     padding:       '4px 14px',
     borderRadius:  radius.full,
-    background:    'rgba(240,165,0,0.08)',
-    border:        '1px solid rgba(240,165,0,0.18)',
+    background:    'rgba(244,82,15,0.08)',
+    border:        '1px solid rgba(244,82,15,0.18)',
     fontSize:      font.size.xs,
     fontWeight:    font.weight.bold,
     color:         colors.gold.base,
