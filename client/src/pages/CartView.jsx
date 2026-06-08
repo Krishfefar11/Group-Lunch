@@ -58,7 +58,7 @@ export default function CartView() {
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
   useEffect(() => {
-    const interval = setInterval(fetchCart, 5000);
+    const interval = setInterval(fetchCart, 10000);
     return () => clearInterval(interval);
   }, [fetchCart]);
 

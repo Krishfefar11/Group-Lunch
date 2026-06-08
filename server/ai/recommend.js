@@ -1,158 +1,432 @@
+/**
+ * recommend.js — Group restaurant recommendation engine
+ *
+ * Primary:  Groq LLM (llama-3.3-70b) — reads all member preferences and
+ *           restaurant options, picks the 3 best fits with human reasoning.
+ *
+ * Fallback: TOPSIS + Nash Bargaining algorithm (runs when LLM call fails).
+ *
+ * Algorithm details (fallback only):
+ *  1. Nash score (geometric mean of member satisfactions):
+ *     If ANY member gets satisfaction = 0, the Nash score = 0.
+ *  2. Egalitarian score (minimum satisfaction — Rawlsian fairness).
+ *  3. Utilitarian score (average satisfaction).
+ *  4. TOPSIS: relative closeness to ideal solution across all criteria.
+ *  5. Conflict-aware diversity: top 3 picks spread across cuisine camps.
+ */
+
 const Groq = require('groq-sdk');
+
+// ── Criteria weights (must sum to 1.0) ───────────────────────────────────────
+const W = {
+  nash:          0.28,   // fair compromise — geometric mean of satisfactions
+  utilitarian:   0.22,   // total group happiness — arithmetic mean
+  egalitarian:   0.20,   // no one left behind — minimum satisfaction
+  rating:        0.18,   // restaurant quality signal
+  deliverySpeed: 0.07,   // faster is better
+  priceValue:    0.05,   // rating per ₹100 spent
+};
 
 const BUDGET_MAX = { under200: 200, '200to400': 400, any: 9999 };
 
-// ── Fallback: pure scoring (used when Groq API is unavailable) ────────────────
-function scoringFallback(preferences, restaurants) {
-  const needsJain = preferences.some((p) => (p.diet || []).includes('jain'));
-  const needsVeg  = preferences.some((p) => (p.diet || []).includes('veg'));
+// ── Step 1: Per-member satisfaction score for one (member, restaurant) pair ──
+// Returns a value in [0, 1].
+function memberSatisfaction(pref, restaurant) {
+  const memberCuisines = pref.cuisine || [];
+  const restCuisines   = restaurant.cuisines || [];
 
-  const scored = restaurants.map((r) => {
-    let score = 0;
-    const reasons = [];
-    const cuisines = r.cuisines || [];
+  // ── Cuisine score ─────────────────────────────────────────────────────────
+  let cuisineScore;
+  if (memberCuisines.includes('Any')) {
+    // "Anything goes" — still slightly below an exact match so direct matches
+    // rank higher when both options are available
+    cuisineScore = 0.75;
+  } else if (memberCuisines.some((c) => restCuisines.includes(c))) {
+    cuisineScore = 1.0;   // exact cuisine match
+  } else {
+    cuisineScore = 0.10;  // no match — not 0 so we never hard-zero someone out
+  }
 
-    const matchingMembers = preferences.filter((p) => {
-      const prefCuisines = p.cuisine || [];
-      if (prefCuisines.includes('Any')) return true;
-      return prefCuisines.some((c) => cuisines.includes(c));
-    });
-    score += matchingMembers.length * 3;
-    if (matchingMembers.length > 0) {
-      reasons.push(`${matchingMembers.length}/${preferences.length} people wanted ${cuisines[0]}`);
-    }
+  // ── Budget score ──────────────────────────────────────────────────────────
+  const budgetMax = BUDGET_MAX[pref.budget] || 9999;
+  let budgetScore;
+  if (restaurant.pricePerPerson <= budgetMax) {
+    budgetScore = 1.0;
+  } else if (restaurant.pricePerPerson <= budgetMax * 1.25) {
+    budgetScore = 0.5;   // slightly over budget — acceptable compromise
+  } else {
+    budgetScore = 0.0;   // clearly out of range
+  }
 
-    const budgetMatches = preferences.filter((p) => {
-      const max = BUDGET_MAX[p.budget] || 9999;
-      return r.pricePerPerson <= max;
-    });
-    score += budgetMatches.length * 2;
-    if (budgetMatches.length === preferences.length) reasons.push("fits everyone's budget");
-    else if (budgetMatches.length > 0) reasons.push(`fits ${budgetMatches.length}/${preferences.length} budgets`);
-
-    const ratingBonus = Math.max(0, (r.rating - 3.5) * 4);
-    score += ratingBonus;
-    if (r.rating >= 4.3) reasons.push(`highly rated ⭐${r.rating}`);
-
-    const deliveryPenalty = Math.max(0, Math.floor((r.deliveryTimeMin - 25) / 10));
-    score -= deliveryPenalty;
-    if (r.deliveryTimeMin <= 25) reasons.push(`fast delivery (${r.deliveryTimeMin} min)`);
-
-    if (needsVeg  && r.vegFriendly)  reasons.push('veg-friendly ✅');
-    if (needsJain && r.jainFriendly) reasons.push('jain-friendly ✅');
-
-    return {
-      restaurant: r,
-      score:      Math.round(score * 10) / 10,
-      reason:     reasons.slice(0, 3).join(' · ') || 'Good all-rounder',
-      matchCount: matchingMembers.length,
-    };
-  });
-
-  return scored.sort((a, b) => b.score - a.score).slice(0, 3);
+  // Cuisine weighted more heavily than budget (people care more about food type)
+  return 0.65 * cuisineScore + 0.35 * budgetScore;
 }
 
-// ── Main: AI-powered recommendation via Groq (LLaMA 3) ───────────────────────
+// ── Step 2: Build the full criteria matrix for all restaurants ───────────────
+function buildCriteriaMatrix(restaurants, preferences) {
+  return restaurants.map((restaurant) => {
+    const n = preferences.length;
+    const memberScores = preferences.map((p) => memberSatisfaction(p, restaurant));
+
+    // Utilitarian: simple average — total happiness
+    const utilitarian = memberScores.reduce((s, x) => s + x, 0) / n;
+
+    // Egalitarian: minimum score — the worst-off member (Rawlsian fairness)
+    const egalitarian = Math.min(...memberScores);
+
+    // Nash Bargaining: geometric mean — if anyone scores 0, result is 0
+    // Use small epsilon to avoid log(0) but still heavily penalise near-zeros
+    const nashProd = memberScores.reduce((prod, x) => prod * Math.max(x, 0.001), 1);
+    const nash     = Math.pow(nashProd, 1 / n);
+
+    // Restaurant quality metrics
+    const rating       = parseFloat(restaurant.rating || 0) / 5.0;
+    // Normalise delivery time: 10 min = 1.0, 60 min = 0.0 (linear)
+    const deliverySpeed = Math.max(0, 1 - (restaurant.deliveryTimeMin - 10) / 50);
+    // Price-value: more rating per ₹100 = better
+    const priceValue   = parseFloat(restaurant.rating || 0) / ((restaurant.pricePerPerson || 200) / 100);
+
+    return {
+      restaurant,
+      memberScores,
+      criteria: { nash, utilitarian, egalitarian, rating, deliverySpeed, priceValue },
+    };
+  });
+}
+
+// ── Step 3: TOPSIS ───────────────────────────────────────────────────────────
+// Ranks alternatives by their relative closeness to the ideal solution.
+function topsis(matrix) {
+  if (matrix.length === 0) return [];
+  if (matrix.length === 1) return [{ ...matrix[0], topsisScore: 1.0 }];
+
+  const keys = Object.keys(W);
+
+  // 3a. Min-max normalise each criterion across all restaurants
+  const mins = {}, maxs = {};
+  for (const k of keys) {
+    const vals = matrix.map((r) => r.criteria[k]);
+    mins[k] = Math.min(...vals);
+    maxs[k] = Math.max(...vals);
+  }
+
+  // 3b. Compute weighted normalised values
+  const weighted = matrix.map((row) => {
+    const wn = {};
+    for (const k of keys) {
+      const range = maxs[k] - mins[k];
+      // If all restaurants are identical on this criterion → 0.5 (no discrimination)
+      const norm = range === 0 ? 0.5 : (row.criteria[k] - mins[k]) / range;
+      wn[k] = norm * W[k];
+    }
+    return { ...row, weighted: wn };
+  });
+
+  // 3c. Ideal best (A+) and ideal worst (A-) for each criterion
+  const best = {}, worst = {};
+  for (const k of keys) {
+    const vals = weighted.map((r) => r.weighted[k]);
+    best[k]  = Math.max(...vals);
+    worst[k] = Math.min(...vals);
+  }
+
+  // 3d. Euclidean distance from ideal best and worst, then relative closeness
+  return weighted
+    .map((row) => {
+      let dBest = 0, dWorst = 0;
+      for (const k of keys) {
+        dBest  += (row.weighted[k] - best[k])  ** 2;
+        dWorst += (row.weighted[k] - worst[k]) ** 2;
+      }
+      dBest  = Math.sqrt(dBest);
+      dWorst = Math.sqrt(dWorst);
+
+      // Relative closeness: 1 = perfectly ideal, 0 = perfectly anti-ideal
+      const topsisScore = (dBest + dWorst) === 0 ? 0 : dWorst / (dBest + dWorst);
+      return { ...row, topsisScore };
+    })
+    .sort((a, b) => b.topsisScore - a.topsisScore);
+}
+
+// ── Step 4: Detect cuisine conflicts ─────────────────────────────────────────
+function detectConflict(preferences) {
+  const cuisineMap = new Map();   // cuisine → [memberNames]
+  for (const p of preferences) {
+    for (const c of (p.cuisine || []).filter((x) => x !== 'Any')) {
+      if (!cuisineMap.has(c)) cuisineMap.set(c, []);
+      cuisineMap.get(c).push(p.memberName);
+    }
+  }
+
+  const total            = preferences.length;
+  const allCuisines      = [...cuisineMap.keys()];
+  const universalCuisines = allCuisines.filter((c) => cuisineMap.get(c).length === total);
+
+  return {
+    hasConflict: universalCuisines.length === 0 && allCuisines.length > 1,
+    cuisineMap,                   // cuisine → [who wants it]
+    universalCuisines,
+  };
+}
+
+// ── Step 5: Enforce diversity when group has conflicting preferences ──────────
+// Ensures the top 3 don't all serve the same cuisine when members disagree.
+function enforceDiversity(ranked, preferences, n = 3) {
+  const { hasConflict, cuisineMap } = detectConflict(preferences);
+  if (!hasConflict || ranked.length <= n) return ranked.slice(0, n);
+
+  // Order cuisine camps by member count (largest camp first)
+  const campsBySizeDesc = [...cuisineMap.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([cuisine]) => cuisine);
+
+  const selected   = [];
+  const usedIds    = new Set();
+
+  // Pick the highest-TOPSIS restaurant for each cuisine camp
+  for (const targetCuisine of campsBySizeDesc) {
+    if (selected.length >= n) break;
+    const pick = ranked.find(
+      (r) => !usedIds.has(r.restaurant.id) &&
+             (r.restaurant.cuisines || []).includes(targetCuisine)
+    );
+    if (pick) {
+      selected.push(pick);
+      usedIds.add(pick.restaurant.id);
+    }
+  }
+
+  // Fill remaining slots with the best not yet chosen
+  for (const r of ranked) {
+    if (selected.length >= n) break;
+    if (!usedIds.has(r.restaurant.id)) {
+      selected.push(r);
+      usedIds.add(r.restaurant.id);
+    }
+  }
+
+  return selected.slice(0, n);
+}
+
+// ── Step 6: Generate a specific, human-readable reason ───────────────────────
+function buildReason(row, preferences) {
+  const { memberScores, restaurant, criteria } = row;
+
+  const satisfied  = preferences.filter((_, i) => memberScores[i] >= 0.65).map((p) => p.memberName);
+  const partial    = preferences.filter((_, i) => memberScores[i] >= 0.30 && memberScores[i] < 0.65).map((p) => p.memberName);
+  const missed     = preferences.filter((_, i) => memberScores[i] < 0.30).map((p) => p.memberName);
+  const n          = preferences.length;
+
+  const parts = [];
+
+  if (satisfied.length === n) {
+    parts.push(`Everyone's top pick`);
+  } else if (satisfied.length > 0 && missed.length > 0) {
+    const satStr  = satisfied.length <= 2 ? satisfied.join(' & ') : `${satisfied.length} members`;
+    const missStr = missed.length    <= 2 ? missed.join(' & ')    : `${missed.length} members`;
+    parts.push(`${satStr} love this · fair compromise for ${missStr}`);
+  } else if (satisfied.length > 0) {
+    parts.push(`${satisfied.join(' & ')} preferred this`);
+    if (partial.length > 0) parts.push(`${partial.join(' & ')} okay with it`);
+  } else {
+    parts.push('Best overall compromise for the group');
+  }
+
+  if (restaurant.rating >= 4.3)        parts.push(`rated ⭐${restaurant.rating}`);
+  if (restaurant.deliveryTimeMin <= 25) parts.push(`${restaurant.deliveryTimeMin} min delivery`);
+
+  return parts.slice(0, 2).join(' · ');
+}
+
+// ── LLM recommendation ────────────────────────────────────────────────────────
+/**
+ * Ask Groq LLM to pick the 3 best restaurants for this specific group.
+ * Sends all member preferences + all candidate restaurants in a structured
+ * prompt and parses back a ranked JSON array.
+ *
+ * Caps the candidate list at 20 to keep the prompt within token limits.
+ * Returns results in the same shape as the TOPSIS fallback so the caller
+ * doesn't need to distinguish between sources.
+ */
+async function recommendWithLLM(preferences, restaurants) {
+  if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY not set');
+
+  // Pre-sort by a fast heuristic so that if we truncate to 20 we keep the
+  // most relevant ones: cuisine-match count DESC, then rating DESC.
+  const allCuisines = [...new Set(preferences.flatMap((p) => p.cuisine || []).filter((c) => c !== 'Any'))];
+  const sorted = [...restaurants].sort((a, b) => {
+    const aMatch = (a.cuisines || []).filter((c) => allCuisines.includes(c)).length;
+    const bMatch = (b.cuisines || []).filter((c) => allCuisines.includes(c)).length;
+    if (bMatch !== aMatch) return bMatch - aMatch;
+    return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
+  });
+  const candidates = sorted.slice(0, 20);
+
+  // Build a compact text block for each member
+  const memberLines = preferences.map((p, i) => {
+    const cuisines = (p.cuisine || []).join(', ') || 'Any';
+    const diet     = (p.diet    || []).join(', ') || 'none';
+    const budget   = p.budget   || 'any';
+    return `  ${i + 1}. ${p.memberName}: cuisines=[${cuisines}], diet=[${diet}], budget=${budget}`;
+  }).join('\n');
+
+  // Build a compact numbered list of restaurants
+  const restaurantLines = candidates.map((r, i) => {
+    const cuisines = (r.cuisines || []).join('/');
+    const veg      = r.vegFriendly  ? 'veg-ok'  : 'non-veg';
+    const jain     = r.jainFriendly ? 'jain-ok' : '';
+    const flags    = [veg, jain].filter(Boolean).join(', ');
+    return `  ${i + 1}. "${r.name}" | ${cuisines} | ⭐${r.rating} | ₹${r.pricePerPerson}/person | ${r.deliveryTimeMin}min | ${flags}`;
+  }).join('\n');
+
+  const prompt = `You are a group lunch coordinator helping a team order food together.
+
+GROUP (${preferences.length} member${preferences.length !== 1 ? 's' : ''}):
+${memberLines}
+
+AVAILABLE RESTAURANTS (${candidates.length}):
+${restaurantLines}
+
+TASK: Pick the 3 best restaurants for this group. Your priorities in order:
+1. Dietary restrictions — if any member is veg or jain, only pick veg/jain-ok restaurants (non-negotiable)
+2. Cuisine preference — maximise how many members get a cuisine they like
+3. Budget — prefer options within members' stated budgets
+4. Fairness — avoid leaving anyone completely unhappy
+5. Quality — prefer higher-rated restaurants
+
+Reply ONLY with a valid JSON array of exactly 3 objects (no markdown, no prose):
+[
+  {
+    "restaurantName": "exact name from the list above",
+    "score": 85,
+    "reason": "1-2 sentences — mention specific member names or preferences to show this is personalised",
+    "matchCount": 4
+  }
+]
+
+score: integer 60-100 — how well this restaurant fits the whole group
+reason: personalised explanation (name actual members and preferences, don't be generic)
+matchCount: how many of the ${preferences.length} members are genuinely happy (integer)`;
+
+  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const completion = await client.chat.completions.create({
+    model:       'llama-3.3-70b-versatile',
+    messages:    [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    max_tokens:  700,
+  });
+
+  const raw   = completion.choices[0]?.message?.content?.trim() || '[]';
+  const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+
+  // Extract balanced JSON array
+  const start = clean.indexOf('[');
+  if (start === -1) throw new Error('LLM: no JSON array in response');
+  let depth = 0, end = -1;
+  for (let i = start; i < clean.length; i++) {
+    if (clean[i] === '[') depth++;
+    else if (clean[i] === ']') { depth--; if (depth === 0) { end = i; break; } }
+  }
+  const picks = JSON.parse(
+    clean.slice(start, end + 1)
+      .replace(/:\s*True\b/g,  ': true')
+      .replace(/:\s*False\b/g, ': false')
+  );
+
+  if (!Array.isArray(picks) || !picks.length) throw new Error('LLM: empty picks array');
+
+  // Match each LLM pick back to a real restaurant object
+  const results = [];
+  const usedIds = new Set();
+
+  for (const pick of picks.slice(0, 3)) {
+    const nameQuery = (pick.restaurantName || '').toLowerCase().trim();
+
+    // 1. Exact match
+    let restaurant = candidates.find((r) => r.name.toLowerCase() === nameQuery);
+    // 2. Partial match (LLM sometimes truncates names)
+    if (!restaurant) {
+      restaurant = candidates.find((r) =>
+        r.name.toLowerCase().includes(nameQuery) ||
+        nameQuery.includes(r.name.toLowerCase())
+      );
+    }
+
+    if (!restaurant || usedIds.has(restaurant.id)) continue;
+    usedIds.add(restaurant.id);
+
+    results.push({
+      restaurant,
+      score:      Math.min(100, Math.max(60, parseInt(pick.score) || 75)),
+      reason:     pick.reason || 'Best match for the group',
+      matchCount: Math.min(preferences.length, Math.max(0, parseInt(pick.matchCount) || 0)),
+      _breakdown: { source: 'llm', model: 'llama-3.3-70b-versatile' },
+    });
+  }
+
+  if (results.length === 0) throw new Error('LLM: could not match any picks to restaurant records');
+
+  return results;
+}
+
+// ── TOPSIS fallback (used when LLM call fails) ────────────────────────────────
+function topsisRecommend(pool, preferences) {
+  const matrix = buildCriteriaMatrix(pool, preferences);
+  const ranked = topsis(matrix);
+  const top3   = enforceDiversity(ranked, preferences, 3);
+  const maxRaw = ranked[0]?.topsisScore || 1;
+
+  return top3.map((row) => {
+    const normalised   = row.topsisScore / maxRaw;
+    const displayScore = Math.round(60 + normalised * 40);
+    return {
+      restaurant:  row.restaurant,
+      score:       displayScore,
+      reason:      buildReason(row, preferences),
+      matchCount:  row.memberScores.filter((s) => s >= 0.65).length,
+      _breakdown: {
+        source:       'topsis',
+        nash:         +(row.criteria.nash          * 100).toFixed(1),
+        utilitarian:  +(row.criteria.utilitarian   * 100).toFixed(1),
+        egalitarian:  +(row.criteria.egalitarian   * 100).toFixed(1),
+        topsisScore:  +(row.topsisScore            * 100).toFixed(1),
+      },
+    };
+  });
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
 async function recommend(preferences, restaurants) {
   if (!preferences.length || !restaurants.length) return [];
 
-  // Hard dietary filters
+  // Hard dietary filter — these are non-negotiable
   const needsJain = preferences.some((p) => (p.diet || []).includes('jain'));
   const needsVeg  = preferences.some((p) => (p.diet || []).includes('veg'));
 
-  let filtered = restaurants.filter((r) => {
+  let pool = restaurants.filter((r) => {
     if (needsJain && !r.jainFriendly) return false;
     if (needsVeg  && !r.vegFriendly)  return false;
     return true;
   });
-  if (filtered.length === 0) filtered = restaurants.filter((r) => (needsVeg ? r.vegFriendly : true));
-  if (filtered.length === 0) filtered = restaurants;
 
-  if (!process.env.GROQ_API_KEY) {
-    console.warn('⚠️  GROQ_API_KEY not set — using scoring fallback');
-    return scoringFallback(preferences, filtered);
-  }
+  // Graceful fallback: relax jain first, then veg, then use everything
+  if (pool.length < 3) pool = restaurants.filter((r) => needsVeg ? r.vegFriendly : true);
+  if (pool.length < 3) pool = restaurants;
 
-  const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
-  const memberSummary = preferences.map((p) => ({
-    name:    p.memberName,
-    diet:    p.diet    || [],
-    cuisine: p.cuisine || [],
-    budget:  p.budget,
-  }));
-
-  const restaurantSummary = filtered.map((r) => ({
-    id:              r.id,
-    name:            r.name,
-    cuisines:        r.cuisines,
-    rating:          parseFloat(r.rating),
-    deliveryTimeMin: r.deliveryTimeMin,
-    pricePerPerson:  r.pricePerPerson,
-    vegFriendly:     r.vegFriendly,
-    jainFriendly:    r.jainFriendly,
-  }));
-
-  const prompt = `You are a restaurant recommendation engine for a group lunch app. Pick the TOP 3 restaurants for this group.
-
-GROUP (${preferences.length} members):
-${JSON.stringify(memberSummary, null, 2)}
-
-RESTAURANTS:
-${JSON.stringify(restaurantSummary, null, 2)}
-
-BUDGET KEY: "under200" = ≤₹200/person · "200to400" = ≤₹400/person · "any" = no limit
-
-Rules:
-- NEVER pick a restaurant that violates a veg/jain requirement
-- Prioritise cuisine matches, then budget fit, then rating, then delivery speed
-- "matchCount" = number of members whose cuisine preference this restaurant satisfies
-
-Reply with ONLY valid JSON — no markdown, no explanation:
-[
-  { "restaurantId": <id>, "score": <0-100>, "reason": "<max 10 words>", "matchCount": <number> },
-  { "restaurantId": <id>, "score": <0-100>, "reason": "<max 10 words>", "matchCount": <number> },
-  { "restaurantId": <id>, "score": <0-100>, "reason": "<max 10 words>", "matchCount": <number> }
-]`;
-
+  // ── Primary: LLM recommendation ─────────────────────────────────────────
   try {
-    const completion = await client.chat.completions.create({
-      model:       'llama-3.3-70b-versatile',
-      messages:    [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      max_tokens:  400,
-    });
-
-    const raw = completion.choices[0]?.message?.content?.trim();
-
-    // Strip accidental markdown code fences if model adds them
-    const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-    const parsed = JSON.parse(clean);
-
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      throw new Error('Empty or invalid response from Groq');
+    const results = await recommendWithLLM(preferences, pool);
+    if (results.length >= 1) {
+      console.log(`🤖 LLM picked ${results.length} restaurant(s) for the group`);
+      return results;
     }
-
-    const results = parsed.slice(0, 3).map((item) => {
-      const restaurant = filtered.find((r) => r.id === item.restaurantId);
-      if (!restaurant) return null;
-      return {
-        restaurant,
-        score:      item.score      ?? 0,
-        reason:     item.reason     || 'Recommended by AI',
-        matchCount: item.matchCount ?? 0,
-      };
-    }).filter(Boolean);
-
-    if (results.length === 0) throw new Error('No valid restaurants matched in AI response');
-
-    console.log(`✅ Groq AI returned ${results.length} recommendations`);
-    return results;
-
   } catch (err) {
-    console.error('⚠️  Groq API error — falling back to scoring:', err.message);
-    return scoringFallback(preferences, filtered);
+    console.warn(`⚠️  LLM recommendation failed (${err.message}) — falling back to TOPSIS`);
   }
+
+  // ── Fallback: TOPSIS algorithm ───────────────────────────────────────────
+  console.log('📊 Using TOPSIS algorithm for recommendation');
+  return topsisRecommend(pool, preferences);
 }
 
 module.exports = { recommend };

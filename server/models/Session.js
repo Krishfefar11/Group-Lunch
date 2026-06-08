@@ -88,6 +88,13 @@ const Session = sequelize.define('Session', {
     defaultValue: null,
     field: 'upi_id',
   },
+  // Direct Zomato / Swiggy URL pasted by organizer when selecting the restaurant
+  orderUrl: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: null,
+    field: 'order_url',
+  },
 }, {
   tableName: 'sessions',
   timestamps: true,

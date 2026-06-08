@@ -137,11 +137,27 @@ Reply with ONLY valid JSON array, no markdown:
   });
 
   const raw   = completion.choices[0]?.message?.content?.trim() || '[]';
+  // Strip markdown code fences
   const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-  const match = clean.match(/\[[\s\S]*\]/);
-  if (!match) throw new Error('No JSON array in Groq response');
 
-  const items = JSON.parse(match[0]);
+  // Extract the JSON array — find the first '[' and match balanced brackets
+  const startIdx = clean.indexOf('[');
+  if (startIdx === -1) throw new Error('No JSON array in Groq response');
+
+  let depth = 0, endIdx = -1;
+  for (let i = startIdx; i < clean.length; i++) {
+    if (clean[i] === '[') depth++;
+    else if (clean[i] === ']') { depth--; if (depth === 0) { endIdx = i; break; } }
+  }
+  const jsonStr = endIdx !== -1 ? clean.slice(startIdx, endIdx + 1) : clean.slice(startIdx);
+
+  // Fix common LLM JSON mistakes: Python-style booleans and None
+  const fixed = jsonStr
+    .replace(/:\s*True\b/g,  ': true')
+    .replace(/:\s*False\b/g, ': false')
+    .replace(/:\s*None\b/g,  ': null');
+
+  const items = JSON.parse(fixed);
   return items.map((item, i) => ({
     restaurantId,
     itemCode:     `AI_${restaurantId}_${i + 1}`,

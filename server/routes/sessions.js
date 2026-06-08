@@ -1,7 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { v4: uuidv4 } = require('uuid');
-const { Session, SessionMember } = require('../models/index');
+const { Session, SessionMember, Restaurant } = require('../models/index');
 
 // ── POST /api/sessions ────────────────────────────────────────────────────
 // Create a new lunch session (called by organizer)
@@ -55,7 +55,10 @@ router.get('/:sessionId', async (req, res) => {
   try {
     const session = await Session.findOne({
       where: { sessionUuid: req.params.sessionId },
-      include: [{ model: SessionMember, as: 'members' }],
+      include: [
+        { model: SessionMember, as: 'members' },
+        { model: Restaurant,    as: 'restaurant' },
+      ],
     });
 
     if (!session) {

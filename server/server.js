@@ -5,6 +5,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { syncDB } = require('./models/index');
 const errorHandler = require('./middleware/errorHandler');
+const { apiLimiter, aiLimiter, chatLimiter } = require('./middleware/rateLimiter');
 
 // ── Connect to MySQL + sync all tables ──────────────────────────────────────
 syncDB();
@@ -45,22 +46,21 @@ io.on('connection', (socket) => {
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/api', apiLimiter);   // blanket rate limit on all API routes
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/health', require('./routes/health'));
-app.use('/api/admin',  require('./routes/admin'));            // Admin Dashboard ✅
+app.use('/api/admin',  require('./routes/admin'));
 
-app.use('/api/restaurants',  require('./routes/restaurants'));    // Stage 2 ✅
-app.use('/api/sessions',     require('./routes/sessions'));        // Stage 3 ✅
-app.use('/api/sessions',     require('./routes/preferences'));      // Stage 4 ✅
-app.use('/api/sessions',     require('./routes/recommend'));         // Stage 5 ✅
-
-app.use('/api/sessions',     require('./routes/chat'));             // AI Chat ✅
-app.use('/api/sessions',     require('./routes/suggestions'));      // AI Menu Suggestions ✅
-app.use('/api/sessions',     require('./routes/orders'));          // Stage 6 ✅
-app.use('/api/sessions',     require('./routes/coupons'));         // Stage 8 ✅
-app.use('/api/sessions',     require('./routes/payment'));         // Razorpay ✅
-// app.use('/api/coupons',      require('./routes/coupons'));        // Stage 8
+app.use('/api/restaurants', require('./routes/restaurants'));
+app.use('/api/sessions',    require('./routes/sessions'));
+app.use('/api/sessions',    require('./routes/preferences'));
+app.use('/api/sessions',    aiLimiter,   require('./routes/recommend'));   // AI-heavy
+app.use('/api/sessions',    chatLimiter, require('./routes/chat'));         // per-session chat
+app.use('/api/sessions',    aiLimiter,   require('./routes/suggestions'));  // AI suggestions
+app.use('/api/sessions',    require('./routes/orders'));
+app.use('/api/sessions',    require('./routes/coupons'));
+app.use('/api/sessions',    require('./routes/payment'));
 
 // ── Root route ───────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {

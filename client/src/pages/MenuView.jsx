@@ -74,6 +74,17 @@ export default function MenuView() {
     if (cats.length > 0 && !activeCategory) setActiveCategory(cats[0]);
   }, [menu]);
 
+  // Auto-poll when menu is empty — background population can take a few seconds
+  useEffect(() => {
+    if (loading) return;
+    if (Object.keys(menu).length > 0) return;
+    if (error) return;
+    const timer = setInterval(() => {
+      fetchMenu();
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [loading, menu, error, fetchMenu]);
+
   // Fetch AI suggestions once menu + member identity are known
   useEffect(() => {
     if (!restaurant || !me?.memberName) return;
@@ -141,6 +152,26 @@ export default function MenuView() {
       <div style={{ textAlign: 'center', maxWidth: 300 }}>
         <p style={{ color: colors.red.text, marginBottom: 20 }}>{error}</p>
         <button style={s.outlineBtn} onClick={fetchMenu}>Try Again</button>
+      </div>
+    </div>
+  );
+
+  // Restaurant selected but menu still being prepared in background
+  if (restaurant && Object.keys(menu).length === 0) return (
+    <div style={s.center}>
+      <div style={{ textAlign: 'center', maxWidth: 320 }}>
+        <div style={{ fontSize: 52, marginBottom: 16, animation: 'float 2.5s ease infinite' }}>👨‍🍳</div>
+        <p style={{ fontSize: font.size.lg, fontWeight: font.weight.semibold, color: colors.text.primary, marginBottom: 8 }}>
+          Menu being prepared…
+        </p>
+        <p style={{ fontSize: font.size.sm, color: colors.text.muted, marginBottom: 24 }}>
+          Our AI is generating dishes for <strong>{restaurant.name}</strong>.<br/>This takes just a few seconds.
+        </p>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+          {[0,1,2].map((i) => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: '50%', background: colors.gold.base, animation: 'pulse 1.4s ease infinite', animationDelay: `${i * 0.22}s` }} />
+          ))}
+        </div>
       </div>
     </div>
   );

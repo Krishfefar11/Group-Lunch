@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const { Session, Restaurant, MenuItem, Order, OrderItem } = require('../models/index');
+const requireOrganizer = require('../middleware/requireOrganizer');
 
 // ── GET /api/sessions/:sessionId/menu ─────────────────────────────────────
 // Returns the session's selected restaurant + its full menu
@@ -159,9 +160,9 @@ router.get('/:sessionId/orders', async (req, res) => {
 // ── POST /api/sessions/:sessionId/place-order ─────────────────────────────
 // Organizer finalises the group order.
 // Body: { deliveryAddress }
-// Sets session status → 'order_placed', broadcasts socket events,
-// then runs a mock delivery timer that emits status progression.
-router.post('/:sessionId/place-order', async (req, res) => {
+// Sets session status → 'order_placed', broadcasts 'order_placed' socket event.
+// The organiser then uses the Zomato / Swiggy deep-link to actually place the order.
+router.post('/:sessionId/place-order', requireOrganizer, async (req, res) => {
   try {
     const { sessionId }      = req.params;
     const { deliveryAddress } = req.body;
@@ -194,6 +195,7 @@ router.post('/:sessionId/place-order', async (req, res) => {
     const savings     = session.couponSavings || 0;
     const finalTotal  = Math.round(grandTotal - savings);
     const placedAt    = new Date();
+    const deliveryMin = restaurant?.deliveryTimeMin || 40;
 
     // Persist to DB
     await session.update({
@@ -205,7 +207,7 @@ router.post('/:sessionId/place-order', async (req, res) => {
     // Mark all member orders as confirmed
     await Order.update({ confirmed: true }, { where: { sessionUuid: sessionId } });
 
-    // Broadcast immediately to all session members
+    // Broadcast immediately to all session members so they navigate to summary
     if (req.io) {
       req.io.to(sessionId).emit('order_placed', {
         restaurantName:  restaurant?.name,
@@ -214,31 +216,6 @@ router.post('/:sessionId/place-order', async (req, res) => {
         placedAt,
         deliveryTimeMin: restaurant?.deliveryTimeMin || 40,
       });
-    }
-
-    // ── Mock delivery timer ───────────────────────────────────────────────
-    // Simulate real-life status progression via Socket.io
-    const io            = req.io;
-    const deliveryMin   = restaurant?.deliveryTimeMin || 40;
-    const prepMs        = Math.min(deliveryMin * 0.3, 10) * 1000;   // 30 % of delivery time, max 10 s (demo)
-    const outMs         = Math.min(deliveryMin * 0.6, 20) * 1000;   // 60 % of delivery time, max 20 s
-    const deliveredMs   = Math.min(deliveryMin * 1.0, 35) * 1000;   // full time, max 35 s
-
-    if (io) {
-      setTimeout(async () => {
-        io.to(sessionId).emit('status_update', { status: 'preparing', message: 'Restaurant is preparing your food 🍳' });
-        await Session.update({ status: 'preparing' }, { where: { sessionUuid: sessionId } }).catch(() => {});
-      }, prepMs);
-
-      setTimeout(async () => {
-        io.to(sessionId).emit('status_update', { status: 'out_for_delivery', message: 'Rider is on the way 🛵' });
-        await Session.update({ status: 'out_for_delivery' }, { where: { sessionUuid: sessionId } }).catch(() => {});
-      }, outMs);
-
-      setTimeout(async () => {
-        io.to(sessionId).emit('status_update', { status: 'delivered', message: 'Order delivered! Enjoy your meal 🎉' });
-        await Session.update({ status: 'delivered' }, { where: { sessionUuid: sessionId } }).catch(() => {});
-      }, deliveredMs);
     }
 
     res.json({

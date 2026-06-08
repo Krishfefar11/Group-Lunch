@@ -13,11 +13,16 @@ export default function RestaurantPicker() {
   const { sessionId } = useParams();
   const navigate      = useNavigate();
 
-  const [results,   setResults]   = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState('');
-  const [selecting, setSelecting] = useState(null);
-  const [me,        setMe]        = useState(null);
+  const [results,    setResults]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [selecting,  setSelecting]  = useState(null);
+  const [me,         setMe]         = useState(null);
+  // URL modal state
+  const [pendingId,  setPendingId]  = useState(null);   // restaurantId waiting for URL
+  const [orderUrl,   setOrderUrl]   = useState('');
+  const [urlFocused, setUrlFocused] = useState(false);
+  const [urlError,   setUrlError]   = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem(`member_${sessionId}`);
@@ -38,11 +43,33 @@ export default function RestaurantPicker() {
     }
   };
 
-  const handleSelect = async (restaurantId) => {
+  // Step 1 — organizer clicks "Order from X": open URL prompt
+  const handleSelect = (restaurantId) => {
     if (!me?.isOrganizer) return;
-    setSelecting(restaurantId);
+    setPendingId(restaurantId);
+    setOrderUrl('');
+    setUrlError('');
+  };
+
+  // Step 2 — confirm with optional URL
+  const handleConfirm = async () => {
+    if (!pendingId) return;
+
+    // If URL is provided, validate it's Zomato or Swiggy
+    const trimmed = orderUrl.trim();
+    if (trimmed && !/^https?:\/\/(www\.)?(zomato\.com|swiggy\.com)/i.test(trimmed)) {
+      setUrlError('Please paste a valid Zomato or Swiggy URL, or leave it empty.');
+      return;
+    }
+
+    setSelecting(pendingId);
+    setPendingId(null);
     try {
-      await axios.patch(`/api/sessions/${sessionId}/restaurant`, { restaurantId });
+      await axios.patch(
+        `/api/sessions/${sessionId}/restaurant`,
+        { restaurantId: pendingId, orderUrl: trimmed || null },
+        { headers: { 'x-organizer-id': me.memberId } },
+      );
       navigate(`/session/${sessionId}/menu`);
     } catch (err) {
       alert(err.response?.data?.message || 'Could not select restaurant');
@@ -75,9 +102,60 @@ export default function RestaurantPicker() {
     </div>
   );
 
+  // The restaurant name for the currently pending selection
+  const pendingName = pendingId
+    ? (results.find((r) => r.restaurant?.id === pendingId)?.restaurant?.name || 'this restaurant')
+    : '';
+
   return (
     <div style={s.page}>
       <div style={s.blob} />
+
+      {/* ── URL prompt modal ──────────────────────────────────────────────── */}
+      {pendingId && (
+        <div style={s.modalOverlay} onClick={() => setPendingId(null)}>
+          <div style={s.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={s.modalHeader}>
+              <p style={s.modalTitle}>Confirm restaurant</p>
+              <button style={s.modalClose} onClick={() => setPendingId(null)}>✕</button>
+            </div>
+
+            <p style={s.modalBody}>
+              Paste the <strong>Zomato or Swiggy URL</strong> for <em>{pendingName}</em> so the group can open the exact page. This is optional — skip it if you don't have the link yet.
+            </p>
+
+            <input
+              style={{
+                ...s.urlInput,
+                borderColor: urlError ? colors.red.text : urlFocused ? colors.border.focus : colors.border.default,
+                boxShadow:   urlFocused ? '0 0 0 3px rgba(240,165,0,0.12)' : 'none',
+              }}
+              type="url"
+              placeholder="https://www.zomato.com/bangalore/..."
+              value={orderUrl}
+              onChange={(e) => { setOrderUrl(e.target.value); setUrlError(''); }}
+              onFocus={() => setUrlFocused(true)}
+              onBlur={() => setUrlFocused(false)}
+              autoFocus
+            />
+            {urlError && <p style={s.urlError}>{urlError}</p>}
+
+            <div style={s.modalBtns}>
+              <button style={s.skipBtn} onClick={() => { setOrderUrl(''); handleConfirm(); }}>
+                Skip & continue →
+              </button>
+              <button
+                style={{ ...s.confirmBtn, opacity: orderUrl.trim() ? 1 : 0.55 }}
+                onClick={handleConfirm}
+                disabled={!orderUrl.trim()}
+              >
+                Save URL & continue →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={s.wrapper}>
 
         <div style={s.header} className="animate-fade-up">
@@ -240,4 +318,17 @@ const s = {
   spinner:   { display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(0,0,0,0.15)', borderTopColor: colors.text.inverse, borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 },
   rerunBtn:  { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: '0 auto', background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, cursor: 'pointer', padding: '9px 24px', transition: transition.base },
   outlineBtn:{ background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.base, cursor: 'pointer', padding: '11px 24px', transition: transition.base },
+
+  // ── URL prompt modal ───────────────────────────────────────────────────────
+  modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' },
+  modal:        { background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius['2xl'], padding: '24px', width: '100%', maxWidth: 440, boxShadow: shadow.lg },
+  modalHeader:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle:   { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.text.primary, margin: 0 },
+  modalClose:   { background: 'transparent', border: 'none', color: colors.text.muted, fontSize: 16, cursor: 'pointer', padding: '4px 8px', borderRadius: radius.sm },
+  modalBody:    { fontSize: font.size.sm, color: colors.text.secondary, lineHeight: 1.6, marginBottom: 18 },
+  urlInput:     { width: '100%', background: colors.bg.raised, border: `1px solid ${colors.border.default}`, borderRadius: radius.md, color: colors.text.primary, fontFamily: font.family, fontSize: font.size.sm, padding: '12px 14px', outline: 'none', boxSizing: 'border-box', transition: transition.base, marginBottom: 6 },
+  urlError:     { fontSize: font.size.xs, color: colors.red.text, marginBottom: 14 },
+  modalBtns:    { display: 'flex', gap: 10, marginTop: 18 },
+  skipBtn:      { flex: 1, padding: '12px', borderRadius: radius.lg, background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, cursor: 'pointer', transition: transition.base },
+  confirmBtn:   { flex: 1, padding: '12px', borderRadius: radius.lg, background: colors.gold.base, color: colors.text.inverse, border: 'none', fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.bold, cursor: 'pointer', transition: transition.base },
 };

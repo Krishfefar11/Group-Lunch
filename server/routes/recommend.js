@@ -5,6 +5,7 @@ const { recommend }              = require('../ai/recommend');
 const { getRestaurantsForCity }  = require('../services/places');
 const { getDishesForRestaurant } = require('../services/mealdb');
 const { Session, Preference, Restaurant, MenuItem } = require('../models/index');
+const requireOrganizer = require('../middleware/requireOrganizer');
 
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -32,11 +33,13 @@ router.post('/:sessionId/recommend', async (req, res) => {
     const city = session.deliveryCity || 'Bangalore';
 
     // ── 1. Get cuisine hints from group preferences ──────────────────────────
+    // Include ALL unique cuisines from all members — not just the first 2.
+    // Slicing here was the root cause of biased restaurant pools.
     const cuisineHints = [
       ...new Set(
         preferences.flatMap((p) => p.cuisine || []).filter((c) => c !== 'Any')
       ),
-    ].slice(0, 2);
+    ];
 
     // ── 2. Check cache: do we have fresh restaurants for this city? ──────────
     const cacheThreshold = new Date(Date.now() - CACHE_TTL_MS);
@@ -132,6 +135,7 @@ router.post('/:sessionId/recommend', async (req, res) => {
         score:      r.score,
         reason:     r.reason,
         matchCount: r.matchCount,
+        breakdown:  r._breakdown || null,
       })),
     });
   } catch (err) {
@@ -142,10 +146,10 @@ router.post('/:sessionId/recommend', async (req, res) => {
 
 // ── PATCH /api/sessions/:sessionId/restaurant ─────────────────────────────────
 // Organizer locks in a restaurant, then we populate its menu from TheMealDB
-router.patch('/:sessionId/restaurant', async (req, res) => {
+router.patch('/:sessionId/restaurant', requireOrganizer, async (req, res) => {
   try {
     const { sessionId }   = req.params;
-    const { restaurantId } = req.body;
+    const { restaurantId, orderUrl } = req.body;
 
     if (!restaurantId) {
       return res.status(400).json({ success: false, message: 'restaurantId is required' });
@@ -159,8 +163,13 @@ router.patch('/:sessionId/restaurant', async (req, res) => {
     if (!session)     return res.status(404).json({ success: false, message: 'Session not found' });
     if (!restaurant)  return res.status(404).json({ success: false, message: 'Restaurant not found' });
 
-    // Update session status
-    await session.update({ selectedRestaurantId: restaurantId, status: 'ordering' });
+    // Validate orderUrl if provided — must be a Zomato or Swiggy URL
+    const safeOrderUrl = orderUrl && /^https?:\/\/(www\.)?(zomato\.com|swiggy\.com)/i.test(orderUrl)
+      ? orderUrl.trim()
+      : null;
+
+    // Update session status + optional direct order URL
+    await session.update({ selectedRestaurantId: restaurantId, status: 'ordering', orderUrl: safeOrderUrl });
 
     // ── Populate real menu from TheMealDB (non-blocking — runs in background) ──
     const cuisines = restaurant.cuisines || ['Any'];

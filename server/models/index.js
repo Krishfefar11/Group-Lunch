@@ -67,6 +67,7 @@ const syncDB = async () => {
       await addColIfMissing('restaurants', 'city',      'VARCHAR(100) DEFAULT NULL');
       await addColIfMissing('sessions',    'delivery_city', 'VARCHAR(100) DEFAULT NULL');
       await addColIfMissing('sessions',    'upi_id',        'VARCHAR(100) DEFAULT NULL');
+      await addColIfMissing('sessions',    'order_url',     'TEXT DEFAULT NULL');
       await addColIfMissing('menu_items',  'image_url', 'TEXT DEFAULT NULL');
       await addColIfMissing('menu_items',  'meal_db_id','VARCHAR(20) DEFAULT NULL');
 

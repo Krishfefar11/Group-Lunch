@@ -6,51 +6,76 @@ const API = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// ── Helper: inject organizer ID into request if caller provides it ───────────
+// Organizer-only routes need `x-organizer-id` header for server-side auth.
+function withOrganizer(organizerId) {
+  return { headers: { 'x-organizer-id': organizerId } };
+}
+
 // ── Health ──────────────────────────────────────────────────────────────────
 export const checkHealth = () => API.get('/health');
 
-// ── Sessions (Stage 3) ──────────────────────────────────────────────────────
-export const createSession   = (data)      => API.post('/sessions', data);
-export const getSession      = (sessionId) => API.get(`/sessions/${sessionId}`);
+// ── Sessions ────────────────────────────────────────────────────────────────
+export const createSession = (data) =>
+  API.post('/sessions', data);
 
-// ── Preferences (Stage 4) ───────────────────────────────────────────────────
+export const getSession = (sessionId) =>
+  API.get(`/sessions/${sessionId}`);
+
+export const joinSession = (sessionId, data) =>
+  API.post(`/sessions/${sessionId}/join`, data);
+
+// ── Preferences ─────────────────────────────────────────────────────────────
 export const submitPreference = (sessionId, data) =>
   API.post(`/sessions/${sessionId}/preferences`, data);
-export const getPreferences   = (sessionId) =>
+
+export const getPreferences = (sessionId) =>
   API.get(`/sessions/${sessionId}/preferences`);
 
-// ── Restaurant Recommendation (Stage 5) ─────────────────────────────────────
+// ── Restaurant Recommendation ────────────────────────────────────────────────
 export const getRecommendations = (sessionId) =>
   API.post(`/sessions/${sessionId}/recommend`);
-export const selectRestaurant   = (sessionId, restaurantId) =>
-  API.patch(`/sessions/${sessionId}/restaurant`, { restaurantId });
 
-// ── Menu & Orders (Stage 6) ─────────────────────────────────────────────────
-export const getRestaurantMenu = (restaurantId) =>
-  API.get(`/restaurants/${restaurantId}/menu`);
-export const submitOrder = (sessionId, memberId, data) =>
-  API.post(`/sessions/${sessionId}/members/${memberId}/order`, data);
+// organizerId required — server checks it server-side
+export const selectRestaurant = (sessionId, restaurantId, organizerId) =>
+  API.patch(
+    `/sessions/${sessionId}/restaurant`,
+    { restaurantId },
+    withOrganizer(organizerId),
+  );
 
-// ── Cart (Stage 7) ──────────────────────────────────────────────────────────
-export const getCart = (sessionId) => API.get(`/sessions/${sessionId}/cart`);
+// ── Menu & Orders ────────────────────────────────────────────────────────────
+export const getMenu = (sessionId) =>
+  API.get(`/sessions/${sessionId}/menu`);
 
-// ── Coupon (Stage 8) ────────────────────────────────────────────────────────
-export const applyCoupon = (sessionId) =>
-  API.post(`/sessions/${sessionId}/apply-coupon`);
+export const submitOrder = (sessionId, data) =>
+  API.post(`/sessions/${sessionId}/orders`, data);
 
-// ── Place Order (Stage 9) ────────────────────────────────────────────────────
-export const placeOrder = (sessionId, data) =>
-  API.post(`/sessions/${sessionId}/place-order`, data);
+export const getOrders = (sessionId) =>
+  API.get(`/sessions/${sessionId}/orders`);
 
-// ── Admin Dashboard ──────────────────────────────────────────────────────────
-export const getAdminDashboard = () => API.get('/admin/dashboard');
+// ── Place Order (organizer only) ─────────────────────────────────────────────
+export const placeOrder = (sessionId, organizerId, data) =>
+  API.post(
+    `/sessions/${sessionId}/place-order`,
+    data,
+    withOrganizer(organizerId),
+  );
+
+// ── Coupons ──────────────────────────────────────────────────────────────────
+export const applyCoupon = (sessionId, couponCode) =>
+  API.post(`/sessions/${sessionId}/apply-coupon`, { couponCode });
+
+// ── AI Chat ──────────────────────────────────────────────────────────────────
+export const sendChatMessage = (sessionId, payload) =>
+  API.post(`/sessions/${sessionId}/chat`, payload);
 
 // ── AI Menu Suggestions ─────────────────────────────────────────────────────
 export const getMenuSuggestions = (sessionId, memberName) =>
   API.get(`/sessions/${sessionId}/menu/suggestions`, { params: { memberName } });
 
-// ── AI Chat Bot ─────────────────────────────────────────────────────────────
-export const sendChatMessage = (sessionId, payload) =>
-  API.post(`/sessions/${sessionId}/chat`, payload);
+// ── Admin ────────────────────────────────────────────────────────────────────
+export const getAdminDashboard = () =>
+  API.get('/admin/dashboard');
 
 export default API;

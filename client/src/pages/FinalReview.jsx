@@ -3,17 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
-function loadRazorpayScript() {
-  return new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const s = document.createElement('script');
-    s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    s.onload = () => resolve(true);
-    s.onerror = () => resolve(false);
-    document.body.appendChild(s);
-  });
-}
-
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
 
 export default function FinalReview() {
@@ -21,6 +10,7 @@ export default function FinalReview() {
   const navigate      = useNavigate();
 
   const [orders,        setOrders]        = useState([]);
+  const [session,       setSession]       = useState(null);
   const [bestCoupon,    setBestCoupon]    = useState(null);
   const [applied,       setApplied]       = useState(null);
   const [manualCode,    setManualCode]    = useState('');
@@ -38,18 +28,19 @@ export default function FinalReview() {
   useEffect(() => {
     const stored = localStorage.getItem(`member_${sessionId}`);
     if (stored) setMe(JSON.parse(stored));
-    loadRazorpayScript();
   }, [sessionId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ordersRes, bestRes] = await Promise.all([
+      const [ordersRes, bestRes, sessionRes] = await Promise.all([
         axios.get(`/api/sessions/${sessionId}/orders`),
         axios.get(`/api/sessions/${sessionId}/coupons/best`),
+        axios.get(`/api/sessions/${sessionId}`),
       ]);
       setOrders(ordersRes.data.data || []);
       setOriginalTotal(bestRes.data.total || 0);
+      setSession(sessionRes.data.data || null);
       if (bestRes.data.best) {
         setBestCoupon(bestRes.data.best);
         setAllEligible(bestRes.data.allEligible || []);
@@ -76,46 +67,19 @@ export default function FinalReview() {
     catch { /* ignore */ } finally { setApplying(false); }
   };
 
-  const handlePayment = async () => {
+  // ── Confirm & lock the order ───────────────────────────────────────────────
+  const handleFinalise = async () => {
     setPlacingOrder(true); setPlaceError('');
     try {
-      const loaded = await loadRazorpayScript();
-      if (!loaded) { setPlaceError('Could not load payment gateway.'); setPlacingOrder(false); return; }
-
-      const { data } = await axios.post(`/api/sessions/${sessionId}/create-payment`);
-      if (!data.success) throw new Error(data.message);
-      const { razorpayOrderId, amount, currency, keyId, restaurantName } = data.data;
-
-      const options = {
-        key: keyId, amount, currency,
-        name: 'Group Lunch 🍱',
-        description: `Lunch at ${restaurantName || 'the restaurant'}`,
-        order_id: razorpayOrderId,
-        prefill: { name: me?.memberName || '' },
-        notes: { sessionId },
-        theme: { color: colors.gold.base },
-        handler: async (response) => {
-          try {
-            await axios.post(`/api/sessions/${sessionId}/verify-payment`, {
-              razorpay_order_id:   response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature:  response.razorpay_signature,
-              deliveryAddress:     deliveryAddress.trim() || 'Office',
-            });
-            navigate(`/session/${sessionId}/tracking`);
-          } catch (err) {
-            setPlaceError(err.response?.data?.message || 'Payment went through but order failed. Contact support.');
-            setPlacingOrder(false);
-          }
-        },
-        modal: { ondismiss: () => setPlacingOrder(false) },
-      };
-
-      const rzp = new window.Razorpay(options);
-      rzp.on('payment.failed', (r) => { setPlaceError(`Payment failed: ${r.error.description}`); setPlacingOrder(false); });
-      rzp.open();
+      await axios.post(
+        `/api/sessions/${sessionId}/place-order`,
+        { deliveryAddress: deliveryAddress.trim() || 'Office' },
+        { headers: { 'x-organizer-id': me?.memberId } },
+      );
+      // Navigate to tracking/summary — all members get the socket event too
+      navigate(`/session/${sessionId}/tracking`);
     } catch (err) {
-      setPlaceError(err.response?.data?.message || 'Could not initiate payment.');
+      setPlaceError(err.response?.data?.message || 'Could not confirm order.');
       setPlacingOrder(false);
     }
   };
@@ -127,7 +91,7 @@ export default function FinalReview() {
     <div style={s.center}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 40, marginBottom: 16, animation: 'float 2.5s ease infinite' }}>🎟️</div>
-        <p style={{ color: colors.text.secondary }}>Finding the best coupon for your group...</p>
+        <p style={{ color: colors.text.secondary }}>Loading order details...</p>
       </div>
     </div>
   );
@@ -142,6 +106,8 @@ export default function FinalReview() {
     </div>
   );
 
+  const restaurant = session?.restaurant;
+
   return (
     <div style={s.page}>
       <div style={s.blob1} />
@@ -155,10 +121,32 @@ export default function FinalReview() {
             </svg>
           </button>
           <div>
-            <h1 style={s.pageTitle}>Review & Pay</h1>
-            <p style={s.pageSub}>{orders.length} orders · ₹{originalTotal} subtotal</p>
+            <h1 style={s.pageTitle}>Confirm Order</h1>
+            <p style={s.pageSub}>
+              {restaurant?.name
+                ? `${orders.length} orders · ${restaurant.name}`
+                : `${orders.length} orders · ₹${originalTotal} subtotal`}
+            </p>
           </div>
         </div>
+
+        {/* ── Restaurant info ────────────────────────────────────────────── */}
+        {restaurant && (
+          <div style={s.restCard} className="animate-fade-up">
+            <span style={{ fontSize: 28 }}>{restaurant.imageEmoji || '🍽️'}</span>
+            <div style={{ flex: 1 }}>
+              <p style={s.restName}>{restaurant.name}</p>
+              <p style={s.restMeta}>
+                {[restaurant.area, session?.deliveryCity].filter(Boolean).join(' · ')}
+                {restaurant.deliveryTimeMin ? ` · ~${restaurant.deliveryTimeMin} min` : ''}
+              </p>
+            </div>
+            <div style={s.ratingPill}>
+              <span style={{ color: colors.gold.base }}>★</span>
+              <span>{restaurant.rating}</span>
+            </div>
+          </div>
+        )}
 
         {/* ── Order summary ──────────────────────────────────────────────── */}
         <div style={s.section} className="animate-fade-up">
@@ -196,8 +184,6 @@ export default function FinalReview() {
               style={{ ...s.applyBtn, opacity: applying ? 0.7 : 1 }}
               onClick={() => applyCoupon(bestCoupon.code)}
               disabled={applying}
-              onMouseEnter={(e) => { if (!applying) e.currentTarget.style.background = colors.green.base; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = colors.green.dim.replace('0.12','0.2'); }}
             >
               {applying ? 'Applying...' : `Apply ${bestCoupon.code}`}
             </button>
@@ -254,8 +240,6 @@ export default function FinalReview() {
                 style={{ ...s.manualApplyBtn, opacity: applying ? 0.7 : 1 }}
                 onClick={() => applyCoupon(manualCode)}
                 disabled={applying || !manualCode.trim()}
-                onMouseEnter={(e) => { if (!applying && manualCode) e.currentTarget.style.background = colors.gold.base; e.currentTarget.style.color = colors.text.inverse; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = colors.text.gold; }}
               >
                 Apply
               </button>
@@ -278,7 +262,7 @@ export default function FinalReview() {
           )}
           <div style={s.priceDivider} />
           <div style={s.priceRow}>
-            <span style={s.totalLabel}>Total to Pay</span>
+            <span style={s.totalLabel}>Total</span>
             <span style={s.totalVal}>₹{finalTotal}</span>
           </div>
           {savings > 0 && (
@@ -310,7 +294,15 @@ export default function FinalReview() {
           </div>
         </div>
 
-        {/* ── Pay button ────────────────────────────────────────────────── */}
+        {/* ── Info box ──────────────────────────────────────────────────── */}
+        <div style={s.infoBox}>
+          <span style={{ fontSize: 16 }}>💡</span>
+          <p style={s.infoText}>
+            Confirming locks the order for all members. You'll then get a direct link to open on Zomato / Swiggy and a WhatsApp message to share with the group.
+          </p>
+        </div>
+
+        {/* ── Error ─────────────────────────────────────────────────────── */}
         {placeError && (
           <div style={s.errorBox}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke={colors.red.text} strokeWidth="1.5"/><path d="M12 7v5M12 16v1" stroke={colors.red.text} strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -318,31 +310,24 @@ export default function FinalReview() {
           </div>
         )}
 
+        {/* ── Confirm button ────────────────────────────────────────────── */}
         <button
-          style={{ ...s.payBtn, opacity: placingOrder ? 0.7 : 1 }}
-          onClick={handlePayment}
+          style={{ ...s.confirmBtn, opacity: placingOrder ? 0.7 : 1 }}
+          onClick={handleFinalise}
           disabled={placingOrder}
           onMouseEnter={(e) => { if (!placingOrder) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(240,165,0,0.45)'; }}}
           onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 20px rgba(240,165,0,0.28)'; }}
           className="animate-fade-up"
         >
           {placingOrder ? (
-            <><span style={s.spinner} /> Opening payment...</>
+            <><span style={s.spinner} /> Confirming order...</>
           ) : (
             <>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="1" y="4" width="22" height="16" rx="2" stroke="currentColor" strokeWidth="2"/><line x1="1" y1="10" x2="23" y2="10" stroke="currentColor" strokeWidth="2"/></svg>
-              Pay ₹{finalTotal}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Confirm Group Order →
             </>
           )}
         </button>
-
-        {/* Security badge */}
-        <div style={s.securityRow}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke={colors.text.muted} strokeWidth="1.5"/></svg>
-          <span style={s.securityText}>Secured by</span>
-          <span style={{ fontSize: font.size.xs, fontWeight: font.weight.bold, color: '#528ff0' }}>Razorpay</span>
-          <span style={s.securityText}>· Test mode</span>
-        </div>
 
         <div style={{ height: 48 }} />
       </div>
@@ -359,6 +344,12 @@ const s = {
   backBtn:{ width: 34, height: 34, borderRadius: radius.md, background: colors.bg.surface, border: `1px solid ${colors.border.default}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: transition.fast },
   pageTitle:{ fontSize: font.size['2xl'], fontWeight: font.weight.bold, color: colors.text.primary, letterSpacing: '-0.025em', margin: '0 0 2px' },
   pageSub:  { fontSize: font.size.sm, color: colors.text.muted, margin: 0 },
+
+  // Restaurant card
+  restCard: { display: 'flex', alignItems: 'center', gap: 14, background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius.xl, padding: '14px 18px', marginBottom: 16, boxShadow: shadow.sm },
+  restName: { fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text.primary, margin: '0 0 3px' },
+  restMeta: { fontSize: font.size.xs, color: colors.text.muted, margin: 0 },
+  ratingPill: { display: 'flex', alignItems: 'center', gap: 4, background: colors.gold.dim, border: `1px solid rgba(240,165,0,0.2)`, borderRadius: radius.full, padding: '4px 10px', fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text.primary, flexShrink: 0 },
 
   section:     { marginBottom: 16 },
   sectionLabel:{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: colors.text.muted, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 10 },
@@ -408,9 +399,13 @@ const s = {
 
   addressInput: { width: '100%', background: colors.bg.raised, border: `1px solid ${colors.border.default}`, borderRadius: radius.md, color: colors.text.primary, fontFamily: font.family, fontSize: font.size.base, padding: '12px 16px 12px 40px', outline: 'none', boxSizing: 'border-box', transition: transition.base },
 
+  // Info box
+  infoBox: { display: 'flex', alignItems: 'flex-start', gap: 10, background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: radius.lg, padding: '12px 16px', marginBottom: 16 },
+  infoText: { fontSize: font.size.sm, color: colors.text.secondary, lineHeight: 1.55, margin: 0 },
+
   errorBox: { display: 'flex', alignItems: 'flex-start', gap: 8, background: colors.red.dim, border: `1px solid rgba(239,68,68,0.2)`, borderRadius: radius.lg, padding: '12px 16px', marginBottom: 12, fontSize: font.size.sm, color: colors.red.text },
 
-  payBtn: {
+  confirmBtn: {
     display:        'flex',
     alignItems:     'center',
     justifyContent: 'center',
@@ -431,7 +426,5 @@ const s = {
     letterSpacing:  '-0.01em',
   },
   spinner:     { display: 'inline-block', width: 16, height: 16, border: '2.5px solid rgba(0,0,0,0.15)', borderTopColor: colors.text.inverse, borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 },
-  securityRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 },
-  securityText:{ fontSize: font.size.xs, color: colors.text.muted },
   outlineBtn:  { background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.base, cursor: 'pointer', padding: '11px 24px', transition: transition.base },
 };
