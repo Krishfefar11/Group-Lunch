@@ -61,6 +61,32 @@ globalStyle.textContent = `
     to { transform: rotate(360deg); }
   }
 
+  /* ── Reusable spinner — avoids border shorthand/longhand React warning ── */
+  .gl-spinner {
+    border-top-width:    2px;
+    border-right-width:  2px;
+    border-bottom-width: 2px;
+    border-left-width:   2px;
+    border-style:        solid;
+    border-top-color:    #ffffff;
+    border-right-color:  rgba(255,255,255,0.2);
+    border-bottom-color: rgba(255,255,255,0.2);
+    border-left-color:   rgba(255,255,255,0.2);
+    animation: spin 0.7s linear infinite;
+  }
+  .gl-spinner-dark {
+    border-top-width:    2px;
+    border-right-width:  2px;
+    border-bottom-width: 2px;
+    border-left-width:   2px;
+    border-style:        solid;
+    border-top-color:    rgba(0,0,0,0.6);
+    border-right-color:  rgba(0,0,0,0.12);
+    border-bottom-color: rgba(0,0,0,0.12);
+    border-left-color:   rgba(0,0,0,0.12);
+    animation: spin 0.7s linear infinite;
+  }
+
   @keyframes spinSlow {
     to { transform: rotate(360deg); }
   }

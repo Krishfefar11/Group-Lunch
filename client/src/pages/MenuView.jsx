@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import socket from '../socket/socket.js';
 import { getPhoto, photoUrl, cuisineQuery } from '../utils/unsplash';
 import { getMenuSuggestions } from '../api/api';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
@@ -74,16 +75,21 @@ export default function MenuView() {
     if (cats.length > 0 && !activeCategory) setActiveCategory(cats[0]);
   }, [menu]);
 
-  // Auto-poll when menu is empty — background population can take a few seconds
+  // Listen for menu_ready socket event — server emits this when background
+  // menu population finishes. Replaces the old 5s polling approach.
   useEffect(() => {
-    if (loading) return;
-    if (Object.keys(menu).length > 0) return;
-    if (error) return;
-    const timer = setInterval(() => {
-      fetchMenu();
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [loading, menu, error, fetchMenu]);
+    socket.connect();
+    socket.emit('join_session', sessionId);
+    socket.on('menu_ready', () => {
+      if (Object.keys(menu).length === 0) fetchMenu();
+    });
+    socket.on('order_placed', () => navigate(`/session/${sessionId}/tracking`));
+    return () => {
+      socket.off('menu_ready');
+      socket.off('order_placed');
+      socket.disconnect();
+    };
+  }, [sessionId, fetchMenu, navigate, menu]);
 
   // Fetch AI suggestions once menu + member identity are known
   useEffect(() => {
@@ -468,7 +474,7 @@ const s = {
   // Category nav
   catNavWrap: { position: 'sticky', top: 0, zIndex: 50, background: 'rgba(255,248,242,0.95)', borderBottom: `1px solid ${colors.border.subtle}`, backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', boxShadow: '0 1px 0 rgba(0,0,0,0.05)' },
   catNav:     { display: 'flex', gap: 0, overflowX: 'auto', scrollbarWidth: 'none', padding: '0 12px' },
-  catTab:     { padding: '12px 14px', borderBottom: '2px solid transparent', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.text.muted, whiteSpace: 'nowrap', transition: transition.base, flexShrink: 0 },
+  catTab:     { padding: '12px 14px', borderTop: 'none', borderLeft: 'none', borderRight: 'none', borderBottom: '2px solid transparent', background: 'transparent', cursor: 'pointer', fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, color: colors.text.muted, whiteSpace: 'nowrap', transition: transition.base, flexShrink: 0 },
   catTabActive:{ color: colors.text.gold, borderBottom: `2px solid ${colors.gold.base}` },
 
   menuBody:  { maxWidth: 680, margin: '0 auto', padding: '0 16px' },

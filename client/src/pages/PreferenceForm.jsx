@@ -320,7 +320,7 @@ export default function PreferenceForm() {
                 onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
               >
                 {submitting ? (
-                  <><span style={s.spinner} /> Submitting...</>
+                  <><span style={s.spinner} className="gl-spinner" /> Submitting...</>
                 ) : 'Submit Preferences ✓'}
               </button>
             </>
@@ -553,10 +553,7 @@ const s = {
     display:      'inline-block',
     width:        14,
     height:       14,
-    border:       '2px solid rgba(0,0,0,0.15)',
-    borderTopColor: colors.text.inverse,
     borderRadius: '50%',
-    animation:    'spin 0.7s linear infinite',
     flexShrink:   0,
   },
   stepCount: {

@@ -16,23 +16,28 @@ const apiLimiter = isDev
     });
 
 // ── AI routes (Groq / Foursquare) — expensive, tighter cap ──────────────────
-const aiLimiter = rateLimit({
-  windowMs:        60 * 1000,   // 1 minute
-  max:             15,           // max 15 AI calls per minute per IP
-  standardHeaders: true,
-  legacyHeaders:   false,
-  message:         { success: false, message: 'Too many AI requests — wait a moment.' },
-  keyGenerator:    (req) => ipKeyGenerator(req) + ':' + (req.params.sessionId || ''),
-});
+// Disabled in dev so rapid testing never gets blocked
+const aiLimiter = isDev
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs:        60 * 1000,
+      max:             15,
+      standardHeaders: true,
+      legacyHeaders:   false,
+      message:         { success: false, message: 'Too many AI requests — wait a moment.' },
+      keyGenerator:    (req) => ipKeyGenerator(req) + ':' + (req.params.sessionId || ''),
+    });
 
 // ── Chat limiter — per session, tighter ─────────────────────────────────────
-const chatLimiter = rateLimit({
-  windowMs:        60 * 1000,   // 1 minute
-  max:             20,           // 20 messages per minute
-  standardHeaders: true,
-  legacyHeaders:   false,
-  message:         { success: false, message: 'Slow down — max 20 messages per minute.' },
-  keyGenerator:    (req) => ipKeyGenerator(req) + ':chat:' + (req.params.sessionId || ''),
-});
+const chatLimiter = isDev
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs:        60 * 1000,
+      max:             20,
+      standardHeaders: true,
+      legacyHeaders:   false,
+      message:         { success: false, message: 'Slow down — max 20 messages per minute.' },
+      keyGenerator:    (req) => ipKeyGenerator(req) + ':chat:' + (req.params.sessionId || ''),
+    });
 
 module.exports = { apiLimiter, aiLimiter, chatLimiter };

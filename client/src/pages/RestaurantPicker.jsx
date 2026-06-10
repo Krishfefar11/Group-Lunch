@@ -252,7 +252,7 @@ export default function RestaurantPicker() {
                       onMouseEnter={(e) => { if (!selecting) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(240,165,0,0.4)'; }}}
                       onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 20px rgba(240,165,0,0.25)'; }}
                     >
-                      {isSelecting ? <><span style={s.spinner} /> Selecting...</> : <>Order from {r.name} →</>}
+                      {isSelecting ? <><span style={s.spinner} className="gl-spinner" /> Selecting...</> : <>Order from {r.name} →</>}
                     </button>
                   ) : (
                     <p style={s.waitNote}>Waiting for organizer to select...</p>
@@ -315,7 +315,7 @@ const s = {
   reasonText:{ fontSize: font.size.sm, color: colors.text.secondary, lineHeight: 1.55, margin: 0 },
   selectBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', background: colors.gold.base, color: colors.text.inverse, border: 'none', borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.md, fontWeight: font.weight.bold, cursor: 'pointer', padding: '13px', transition: transition.base, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' },
   waitNote:  { textAlign: 'center', fontSize: font.size.sm, color: colors.text.muted },
-  spinner:   { display: 'inline-block', width: 14, height: 14, border: '2px solid rgba(0,0,0,0.15)', borderTopColor: colors.text.inverse, borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 },
+  spinner:   { display: 'inline-block', width: 14, height: 14, borderRadius: '50%', flexShrink: 0 },
   rerunBtn:  { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: '0 auto', background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, cursor: 'pointer', padding: '9px 24px', transition: transition.base },
   outlineBtn:{ background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.base, cursor: 'pointer', padding: '11px 24px', transition: transition.base },
 

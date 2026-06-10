@@ -173,7 +173,7 @@ router.patch('/:sessionId/restaurant', requireOrganizer, async (req, res) => {
 
     // ── Populate real menu from TheMealDB (non-blocking — runs in background) ──
     const cuisines = restaurant.cuisines || ['Any'];
-    populateMenuInBackground(restaurantId, cuisines, restaurant.name);
+    populateMenuInBackground(restaurantId, cuisines, restaurant.name, req.io, sessionId);
 
     // Notify all members via socket
     if (req.io) {
@@ -194,13 +194,15 @@ router.patch('/:sessionId/restaurant', requireOrganizer, async (req, res) => {
 });
 
 // ── Background menu population ────────────────────────────────────────────────
-// Runs after the PATCH response is sent so the user isn't waiting
-async function populateMenuInBackground(restaurantId, cuisines, restaurantName = '') {
+// Runs after the PATCH response is sent so the user isn't waiting.
+// Emits 'menu_ready' via socket when done so MenuView can fetch without polling.
+async function populateMenuInBackground(restaurantId, cuisines, restaurantName = '', io = null, sessionId = null) {
   try {
-    // Skip if menu is already populated
+    // Skip if menu is already populated — emit ready immediately so clients fetch
     const existing = await MenuItem.count({ where: { restaurantId } });
     if (existing > 0) {
       console.log(`ℹ️  Menu already populated for restaurant #${restaurantId} (${existing} items)`);
+      if (io && sessionId) io.to(sessionId).emit('menu_ready', { restaurantId });
       return;
     }
 
@@ -209,6 +211,9 @@ async function populateMenuInBackground(restaurantId, cuisines, restaurantName =
 
     await MenuItem.bulkCreate(dishes);
     console.log(`✅ Populated ${dishes.length} dishes for "${restaurantName}" (#${restaurantId})`);
+
+    // Tell all clients in the session that the menu is ready to fetch
+    if (io && sessionId) io.to(sessionId).emit('menu_ready', { restaurantId, count: dishes.length });
   } catch (err) {
     console.error('Menu population error:', err.message);
   }

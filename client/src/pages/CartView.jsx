@@ -57,18 +57,22 @@ export default function CartView() {
   }, [sessionId]);
 
   useEffect(() => { fetchCart(); }, [fetchCart]);
-  useEffect(() => {
-    const interval = setInterval(fetchCart, 10000);
-    return () => clearInterval(interval);
-  }, [fetchCart]);
 
+  // Replace polling with WebSocket push — server emits 'order_updated'
+  // whenever any member saves their order. Zero wasted requests.
   useEffect(() => {
     socket.connect();
     socket.emit('join_session', sessionId);
-    socket.on('order_placed', () => navigate(`/session/${sessionId}/tracking`));
+    socket.on('order_updated', () => fetchCart());
+    socket.on('order_placed',  () => navigate(`/session/${sessionId}/tracking`));
     socket.on('status_update', () => navigate(`/session/${sessionId}/tracking`));
-    return () => { socket.off('order_placed'); socket.off('status_update'); socket.disconnect(); };
-  }, [sessionId, navigate]);
+    return () => {
+      socket.off('order_updated');
+      socket.off('order_placed');
+      socket.off('status_update');
+      socket.disconnect();
+    };
+  }, [sessionId, navigate, fetchCart]);
 
   useEffect(() => {
     if (session?.status && !['collecting','restaurant_picked','ordering'].includes(session.status)) {

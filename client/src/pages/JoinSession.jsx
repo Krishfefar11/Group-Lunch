@@ -354,7 +354,7 @@ export default function JoinSession() {
                 onMouseEnter={(e) => { if (!joining) e.currentTarget.style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
               >
-                {joining ? <><span style={s.spinner} /> Joining...</> : 'Join Session →'}
+                {joining ? <><span style={s.spinner} className="gl-spinner" /> Joining...</> : 'Join Session →'}
               </button>
             </form>
           </div>
@@ -474,7 +474,7 @@ export default function JoinSession() {
                 onMouseEnter={(e) => { if (!inviteSending) e.currentTarget.style.transform = 'translateY(-1px)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
               >
-                {inviteSending ? <><span style={s.spinner} /> Sending...</> : 'Send Invite'}
+                {inviteSending ? <><span style={s.spinner} className="gl-spinner" /> Sending...</> : 'Send Invite'}
               </button>
             </form>
 
@@ -721,10 +721,7 @@ const s = {
     display:      'inline-block',
     width:        14,
     height:       14,
-    border:       '2px solid rgba(0,0,0,0.15)',
-    borderTopColor: colors.text.inverse,
     borderRadius: '50%',
-    animation:    'spin 0.7s linear infinite',
     flexShrink:   0,
   },
   secondaryActionBtn: {

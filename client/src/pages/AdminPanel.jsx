@@ -488,7 +488,7 @@ export default function AdminPanel() {
                         </div>
                       )}
                       {uploading[r.id] && (
-                        <div style={rs.overlay}><div style={rs.spin} /><span style={{ color: '#fff', fontSize: font.size.xs }}>Uploading…</span></div>
+                        <div style={rs.overlay}><div style={rs.spin} className="gl-spinner" /><span style={{ color: '#fff', fontSize: font.size.xs }}>Uploading…</span></div>
                       )}
                       {uploadSuccess[r.id] && (
                         <div style={{ ...rs.overlay, background: 'rgba(16,185,129,0.8)' }}><span style={{ color: '#fff', fontWeight: 700 }}>✅ Saved!</span></div>
@@ -676,7 +676,7 @@ const rs = {
   img:       { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   placeholder:{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 },
   overlay:   { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  spin:      { width: 28, height: 28, border: '2.5px solid rgba(255,255,255,0.25)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' },
+  spin:      { width: 28, height: 28, borderRadius: '50%' },
   uploadBtn: { flex: 1, display: 'block', padding: '8px', borderRadius: radius.md, background: colors.gold.base, color: colors.text.inverse, fontSize: font.size.xs, fontWeight: font.weight.bold, textAlign: 'center', cursor: 'pointer', border: 'none', fontFamily: font.family },
   unsplashBtn:{ flex: 1, padding: '8px 10px', borderRadius: radius.md, background: colors.bg.overlay, color: colors.text.secondary, fontSize: font.size.xs, fontWeight: font.weight.semibold, cursor: 'pointer', border: `1px solid ${colors.border.default}`, fontFamily: font.family },
   searchInput:{ flex: 1, padding: '6px 10px', borderRadius: radius.sm, background: colors.bg.raised, border: `1px solid ${colors.border.default}`, color: colors.text.primary, fontFamily: font.family, fontSize: font.size.xs, outline: 'none' },

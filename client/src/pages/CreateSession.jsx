@@ -155,7 +155,7 @@ export default function CreateSession() {
                 onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 20px rgba(240,165,0,0.28)'; }}
               >
                 {loading ? (
-                  <><span style={s.spinner} /> Creating session...</>
+                  <><span style={s.spinner} className="gl-spinner" /> Creating session...</>
                 ) : (
                   <> Start Session <span style={{ opacity: 0.7 }}>→</span></>
                 )}
@@ -387,10 +387,7 @@ const s = {
     display:      'inline-block',
     width:        15,
     height:       15,
-    border:       '2px solid rgba(0,0,0,0.15)',
-    borderTopColor: colors.text.inverse,
     borderRadius: '50%',
-    animation:    'spin 0.7s linear infinite',
     flexShrink:   0,
   },
   dividerRow: {
