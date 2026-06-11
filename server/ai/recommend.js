@@ -253,16 +253,63 @@ const log = require('../utils/logger');
 async function recommendWithLLM(preferences, restaurants) {
   if (!process.env.GROQ_API_KEY) throw new Error('GROQ_API_KEY not set');
 
-  // Pre-sort by a fast heuristic so that if we truncate to 20 we keep the
-  // most relevant ones: cuisine-match count DESC, then rating DESC.
+  // ── 1. Build a balanced candidate list (max 20) ─────────────────────────────
+  // Guarantee at least MIN_PER_CAMP restaurants per cuisine camp so the LLM
+  // always has options for EVERY member, even when one cuisine is a minority.
   const allCuisines = [...new Set(preferences.flatMap((p) => p.cuisine || []).filter((c) => c !== 'Any'))];
+
+  // Overall sort: cuisine-match count DESC, then rating DESC (fast relevance filter)
   const sorted = [...restaurants].sort((a, b) => {
     const aMatch = (a.cuisines || []).filter((c) => allCuisines.includes(c)).length;
     const bMatch = (b.cuisines || []).filter((c) => allCuisines.includes(c)).length;
     if (bMatch !== aMatch) return bMatch - aMatch;
     return parseFloat(b.rating || 0) - parseFloat(a.rating || 0);
   });
-  const candidates = sorted.slice(0, 20);
+
+  const MIN_PER_CAMP = 3;
+  const MAX_TOTAL    = 20;
+  const candidateIds = new Set();
+  const candidateList = [];
+
+  // Step A: guarantee MIN_PER_CAMP per cuisine camp (respects veg/jain already
+  // filtered in pool before this function is called)
+  for (const cuisine of allCuisines) {
+    const campRest = restaurants
+      .filter((r) => (r.cuisines || []).includes(cuisine))
+      .sort((a, b) => parseFloat(b.rating || 0) - parseFloat(a.rating || 0));
+    for (const r of campRest.slice(0, MIN_PER_CAMP)) {
+      if (!candidateIds.has(r.id)) {
+        candidateList.push(r);
+        candidateIds.add(r.id);
+      }
+    }
+  }
+
+  // Step B: fill remaining slots from the relevance-sorted list
+  for (const r of sorted) {
+    if (candidateList.length >= MAX_TOTAL) break;
+    if (!candidateIds.has(r.id)) {
+      candidateList.push(r);
+      candidateIds.add(r.id);
+    }
+  }
+
+  const candidates = candidateList;
+
+  // ── 2. Detect cuisine conflicts ──────────────────────────────────────────────
+  const { hasConflict, cuisineMap } = detectConflict(preferences);
+
+  let conflictBlock = '';
+  if (hasConflict) {
+    const campLines = [...cuisineMap.entries()]
+      .map(([c, members]) => `    • ${c} — wanted by: ${members.join(', ')}`)
+      .join('\n');
+    conflictBlock =
+`\n⚠️  CUISINE CONFLICT — group members want DIFFERENT cuisines:
+${campLines}
+RULE: Your 3 picks MUST include at least one restaurant from EACH cuisine camp listed above.
+      Do NOT return all 3 restaurants from the same cuisine. Each cuisine camp needs representation.\n`;
+  }
 
   // Build a compact text block for each member
   const memberLines = preferences.map((p, i) => {
@@ -285,16 +332,17 @@ async function recommendWithLLM(preferences, restaurants) {
 
 GROUP (${preferences.length} member${preferences.length !== 1 ? 's' : ''}):
 ${memberLines}
-
+${conflictBlock}
 AVAILABLE RESTAURANTS (${candidates.length}):
 ${restaurantLines}
 
 TASK: Pick the 3 best restaurants for this group. Your priorities in order:
 1. Dietary restrictions — if any member is veg or jain, only pick veg/jain-ok restaurants (non-negotiable)
-2. Cuisine preference — maximise how many members get a cuisine they like
-3. Budget — prefer options within members' stated budgets
-4. Fairness — avoid leaving anyone completely unhappy
-5. Quality — prefer higher-rated restaurants
+2. Cuisine diversity — when members have different cuisine preferences, spread picks across all cuisine camps (one per camp)
+3. Cuisine preference — maximise how many members get a cuisine they like
+4. Budget — prefer options within members' stated budgets
+5. Fairness — avoid leaving anyone completely unhappy
+6. Quality — prefer higher-rated restaurants
 
 Reply ONLY with a valid JSON array of exactly 3 objects (no markdown, no prose):
 [
@@ -367,6 +415,46 @@ matchCount: how many of the ${preferences.length} members are genuinely happy (i
   }
 
   if (results.length === 0) throw new Error('LLM: could not match any picks to restaurant records');
+
+  // ── 3. Post-processing diversity guard ───────────────────────────────────────
+  // Even when the prompt explicitly asks for diversity the LLM occasionally
+  // ignores it (especially for small groups with only 2 members).  Walk through
+  // every cuisine camp; if a camp has zero representation in the 3 picks, swap
+  // the lowest-priority pick (last in the array) for the best candidate that
+  // covers the missing camp.
+  if (hasConflict && results.length > 1) {
+    for (const [targetCuisine, members] of cuisineMap.entries()) {
+      // Is this cuisine already represented?
+      const represented = results.some((r) =>
+        (r.restaurant.cuisines || []).some((c) => c.toLowerCase() === targetCuisine.toLowerCase())
+      );
+      if (represented) continue;
+
+      // Find best candidate for this missing camp that isn't already in results
+      const pickedIds   = new Set(results.map((r) => r.restaurant.id));
+      const replacement = candidates
+        .filter((r) =>
+          (r.cuisines || []).some((c) => c.toLowerCase() === targetCuisine.toLowerCase()) &&
+          !pickedIds.has(r.id)
+        )
+        .sort((a, b) => parseFloat(b.rating || 0) - parseFloat(a.rating || 0))[0];
+
+      if (replacement) {
+        const replaceIdx = results.length - 1; // swap out last (lowest priority) pick
+        log.info(
+          { targetCuisine, replaced: results[replaceIdx].restaurant.name, injected: replacement.name },
+          'LLM diversity guard: injected missing cuisine camp'
+        );
+        results[replaceIdx] = {
+          restaurant: replacement,
+          score:      70,
+          reason:     `Best ${targetCuisine} option — covers ${members.join(' & ')}'s preference`,
+          matchCount: members.length,
+          _breakdown: { source: 'llm', model: 'llama-3.3-70b-versatile' },
+        };
+      }
+    }
+  }
 
   return results;
 }
