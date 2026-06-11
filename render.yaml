@@ -14,7 +14,7 @@ services:
 
     rootDir: server            # all commands run from the server/ folder
     buildCommand: npm ci --omit=dev
-    startCommand: node server.js
+    startCommand: npx sequelize db:migrate && node server.js
 
     healthCheckPath: /api/health
 
