@@ -4,10 +4,18 @@ const Razorpay  = require('razorpay');
 const crypto    = require('crypto');
 const { Session, Order, OrderItem, Restaurant } = require('../models/index');
 
-const razorpay = new Razorpay({
-  key_id:     process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
+// Lazy init — only create Razorpay instance when a payment route is actually
+// called. This prevents a crash on startup when RAZORPAY_KEY_ID is not set
+// (e.g. on Render free tier where env vars are set separately after deploy).
+function getRazorpay() {
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    throw new Error('Razorpay keys not configured. Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in environment variables.');
+  }
+  return new Razorpay({
+    key_id:     process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+}
 
 // ── Shared delivery timer helper ──────────────────────────────────────────
 function startDeliveryTimer(io, sessionId, deliveryMin) {
@@ -59,7 +67,7 @@ router.post('/:sessionId/create-payment', async (req, res) => {
     const finalTotal = Math.round(grandTotal - savings);
 
     // Razorpay amount is in paise (₹1 = 100 paise)
-    const razorpayOrder = await razorpay.orders.create({
+    const razorpayOrder = await getRazorpay().orders.create({
       amount:   finalTotal * 100,
       currency: 'INR',
       receipt:  `grplunch_${sessionId.slice(0, 8)}`,
