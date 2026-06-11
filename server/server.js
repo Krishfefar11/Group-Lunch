@@ -74,11 +74,16 @@ io.on('connection', (socket) => {
 // Gzip all responses — reduces payload by ~65% with zero code changes
 app.use(compression());
 
-// HTTPS redirect — in production behind a reverse proxy/load balancer
-// Proxies set X-Forwarded-Proto: the original scheme before TLS termination
+// Trust Render / Vercel / Nginx proxy — enables req.secure + correct IP logging
+app.set('trust proxy', 1);
+
+// HTTPS redirect — only when a proxy explicitly tells us the request came in
+// over plain HTTP (X-Forwarded-Proto: http). This is safe on Render because
+// Render's load balancer always sets the header. Requests with no header at
+// all (direct connections, health checks, local dev) are left untouched.
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
-    if (req.headers['x-forwarded-proto'] !== 'https') {
+    if (req.headers['x-forwarded-proto'] === 'http') {
       return res.redirect(301, `https://${req.headers.host}${req.url}`);
     }
     next();
