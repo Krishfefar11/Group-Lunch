@@ -8,6 +8,7 @@
  */
 
 const Groq = require('groq-sdk');
+const log  = require('../utils/logger');
 
 const TOMTOM_KEY  = process.env.TOMTOM_API_KEY;
 const TOMTOM_BASE = 'https://api.tomtom.com/search/2';
@@ -204,7 +205,7 @@ async function searchOSM(city) {
       const data     = await res.json();
       const elements = (data.elements || []).filter((el) => el.tags?.name);
       if (elements.length > 0) {
-        console.log(`🗺️  OpenStreetMap: ${elements.length} restaurants near ${city}`);
+        log.info({ source: 'osm', city, count: elements.length }, 'Restaurants fetched');
         return elements.map((el) => normalizeOSM(el, city));
       }
     } catch { /* try next mirror */ }
@@ -313,11 +314,11 @@ async function getRestaurantsForCity(city, cuisineHints = []) {
       const places  = await searchTomTom(city, cuisineHints);
       const results = places.map((p) => normalizeTomTom(p, city)).filter((r) => r.name && r.name !== 'Unknown Restaurant');
       if (results.length >= 3) {
-        console.log(`📍 TomTom: ${results.length} restaurants near ${city}`);
+        log.info({ source: 'tomtom', city, count: results.length }, 'Restaurants fetched');
         return results;
       }
     } catch (err) {
-      console.warn(`⚠️  TomTom: ${err.message}`);
+      log.warn({ err }, 'TomTom fetch failed');
     }
   }
 
@@ -326,16 +327,16 @@ async function getRestaurantsForCity(city, cuisineHints = []) {
     const results = await searchOSM(city);
     if (results.length >= 3) return results;
   } catch (err) {
-    console.warn(`⚠️  OpenStreetMap: ${err.message}`);
+    log.warn({ err }, 'OpenStreetMap fetch failed');
   }
 
   // 3. Groq AI (always works)
   try {
     const results = await generateWithGroq(city, cuisineHints);
-    console.log(`🤖 Groq AI: generated ${results.length} restaurants for ${city}`);
+    log.info({ source: 'groq-ai', city, count: results.length }, 'Restaurants generated');
     return results;
   } catch (err) {
-    console.warn(`⚠️  Groq generator: ${err.message}`);
+    log.warn({ err }, 'Groq restaurant generator failed');
     return [];
   }
 }

@@ -167,9 +167,13 @@ export default function RestaurantPicker() {
           <div>
             <h1 style={s.pageTitle}>AI Recommendations</h1>
             <p style={s.pageSubtitle}>
-              {results[0]?.restaurant?.source === 'static'
-                ? 'Ranked by group compatibility score'
-                : `Real restaurants · ${results[0]?.restaurant?.area || ''}`}
+              {results[0]?._breakdown?.source === 'llm'
+                ? '🤖 Groq LLM picked these for your group'
+                : results[0]?._breakdown?.source === 'topsis'
+                  ? '📊 Ranked by TOPSIS fairness algorithm'
+                  : results[0]?.restaurant?.source === 'static'
+                    ? 'Ranked by group compatibility score'
+                    : `Real restaurants · ${results[0]?.restaurant?.area || ''}`}
             </p>
           </div>
         </div>

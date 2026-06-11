@@ -1,4 +1,5 @@
 const sequelize  = require('../config/database');
+const log        = require('../utils/logger');
 const Restaurant = require('./Restaurant');
 const MenuItem   = require('./MenuItem');
 const Session    = require('./Session');
@@ -40,7 +41,7 @@ Order.belongsTo(Restaurant, { foreignKey: 'restaurant_id', as: 'restaurant' });
 async function addColIfMissing(table, col, definition) {
   try {
     await sequelize.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${definition}`);
-    console.log(`  ↳ Added column: ${table}.${col}`);
+    log.info({ table, col }, 'DB column added');
   } catch { /* column already exists — ignore */ }
 }
 
@@ -50,15 +51,13 @@ async function addColIfMissing(table, col, definition) {
 const syncDB = async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ MySQL Connected');
+    log.info('MySQL connected');
 
     if (process.env.NODE_ENV === 'production') {
-      console.log('✅ DB ready  (run `npm run db:migrate` to apply schema changes)');
+      log.info('DB ready — run npm run db:migrate to apply schema changes');
     } else {
-      // Create any missing tables (never drops / alters existing ones)
       await sequelize.sync({ force: false });
 
-      // Patch new columns introduced by real-restaurant integration
       await addColIfMissing('restaurants', 'place_id',  'VARCHAR(100) DEFAULT NULL');
       await addColIfMissing('restaurants', 'address',   'VARCHAR(500) DEFAULT NULL');
       await addColIfMissing('restaurants', 'photo_url', 'TEXT DEFAULT NULL');
@@ -71,10 +70,10 @@ const syncDB = async () => {
       await addColIfMissing('menu_items',  'image_url', 'TEXT DEFAULT NULL');
       await addColIfMissing('menu_items',  'meal_db_id','VARCHAR(20) DEFAULT NULL');
 
-      console.log('✅ All tables verified');
+      log.info('All tables verified');
     }
   } catch (err) {
-    console.error('❌ Database error:', err.message);
+    log.error({ err }, 'Database connection failed');
     process.exit(1);
   }
 };

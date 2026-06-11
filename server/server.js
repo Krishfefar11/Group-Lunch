@@ -6,6 +6,7 @@ const { Server } = require('socket.io');
 const { syncDB } = require('./models/index');
 const errorHandler = require('./middleware/errorHandler');
 const { apiLimiter, aiLimiter, chatLimiter } = require('./middleware/rateLimiter');
+const log = require('./utils/logger');
 
 // ── Connect to MySQL + sync all tables ──────────────────────────────────────
 syncDB();
@@ -29,16 +30,15 @@ app.use((req, res, next) => {
 });
 
 io.on('connection', (socket) => {
-  console.log(`🔌 Socket connected: ${socket.id}`);
+  log.debug({ socketId: socket.id }, 'Socket connected');
 
-  // Join a session room (used for live tracking in Stage 9-10)
   socket.on('join_session', (sessionId) => {
     socket.join(sessionId);
-    console.log(`📌 Socket ${socket.id} joined session: ${sessionId}`);
+    log.debug({ socketId: socket.id, sessionId }, 'Socket joined session room');
   });
 
   socket.on('disconnect', () => {
-    console.log(`🔌 Socket disconnected: ${socket.id}`);
+    log.debug({ socketId: socket.id }, 'Socket disconnected');
   });
 });
 
@@ -46,7 +46,18 @@ io.on('connection', (socket) => {
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:3000' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/api', apiLimiter);   // blanket rate limit on all API routes
+app.use('/api', apiLimiter);
+
+// ── Request logger — method, path, status, duration on every API call ───────
+app.use('/api', (req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    const level = res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
+    log[level]({ method: req.method, url: req.originalUrl, status: res.statusCode, ms }, 'Request');
+  });
+  next();
+});
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.use('/api/health', require('./routes/health'));
@@ -78,9 +89,8 @@ app.use(errorHandler);
 // ── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
-  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-  console.log(`📡 API Health: http://localhost:${PORT}/api/health`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}\n`);
+  log.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'Server started');
+  log.info({ url: `http://localhost:${PORT}/api/health` }, 'Health check');
 });
 
 module.exports = { app, io };

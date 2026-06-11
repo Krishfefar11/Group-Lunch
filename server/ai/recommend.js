@@ -238,6 +238,8 @@ function buildReason(row, preferences) {
   return parts.slice(0, 2).join(' · ');
 }
 
+const log = require('../utils/logger');
+
 // ── LLM recommendation ────────────────────────────────────────────────────────
 /**
  * Ask Groq LLM to pick the 3 best restaurants for this specific group.
@@ -417,15 +419,15 @@ async function recommend(preferences, restaurants) {
   try {
     const results = await recommendWithLLM(preferences, pool);
     if (results.length >= 1) {
-      console.log(`🤖 LLM picked ${results.length} restaurant(s) for the group`);
+      log.info({ count: results.length, source: 'llm' }, 'Recommendation complete');
       return results;
     }
   } catch (err) {
-    console.warn(`⚠️  LLM recommendation failed (${err.message}) — falling back to TOPSIS`);
+    log.warn({ err }, 'LLM recommendation failed — falling back to TOPSIS');
   }
 
   // ── Fallback: TOPSIS algorithm ───────────────────────────────────────────
-  console.log('📊 Using TOPSIS algorithm for recommendation');
+  log.info({ source: 'topsis' }, 'Recommendation complete');
   return topsisRecommend(pool, preferences);
 }
 

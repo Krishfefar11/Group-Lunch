@@ -1,5 +1,6 @@
 const express    = require('express');
 const router     = express.Router();
+const log        = require('../utils/logger');
 const { Op }     = require('sequelize');
 const { recommend }              = require('../ai/recommend');
 const { getRestaurantsForCity }  = require('../services/places');
@@ -53,7 +54,7 @@ router.post('/:sessionId/recommend', async (req, res) => {
 
     // ── 3. Cache miss → fetch from Foursquare / OpenStreetMap ────────────────
     if (restaurants.length < 3) {
-      console.log(`🔍 Fetching real restaurants for "${city}"...`);
+      log.info({ city }, 'Fetching real restaurants');
       const fetched = await getRestaurantsForCity(city, cuisineHints);
 
       if (fetched.length > 0) {
@@ -95,7 +96,7 @@ router.post('/:sessionId/recommend', async (req, res) => {
 
     // ── 4. Fallback to static restaurants if real ones unavailable ────────────
     if (restaurants.length === 0) {
-      console.warn('⚠️  No real restaurants found — using static fallback');
+      log.warn('No real restaurants found — using static fallback');
       restaurants = await Restaurant.findAll();
     }
 
@@ -139,7 +140,7 @@ router.post('/:sessionId/recommend', async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error('Recommend error:', err.message);
+    log.error({ err }, 'Recommend route error');
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -201,7 +202,7 @@ async function populateMenuInBackground(restaurantId, cuisines, restaurantName =
     // Skip if menu is already populated — emit ready immediately so clients fetch
     const existing = await MenuItem.count({ where: { restaurantId } });
     if (existing > 0) {
-      console.log(`ℹ️  Menu already populated for restaurant #${restaurantId} (${existing} items)`);
+      log.info({ restaurantId, existing }, 'Menu already populated — emitting ready');
       if (io && sessionId) io.to(sessionId).emit('menu_ready', { restaurantId });
       return;
     }
@@ -210,12 +211,12 @@ async function populateMenuInBackground(restaurantId, cuisines, restaurantName =
     if (!dishes.length) return;
 
     await MenuItem.bulkCreate(dishes);
-    console.log(`✅ Populated ${dishes.length} dishes for "${restaurantName}" (#${restaurantId})`);
+    log.info({ restaurantId, restaurantName, count: dishes.length }, 'Menu populated');
 
     // Tell all clients in the session that the menu is ready to fetch
     if (io && sessionId) io.to(sessionId).emit('menu_ready', { restaurantId, count: dishes.length });
   } catch (err) {
-    console.error('Menu population error:', err.message);
+    log.error({ err, restaurantId }, 'Menu population failed');
   }
 }
 

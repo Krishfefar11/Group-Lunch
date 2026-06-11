@@ -7,6 +7,7 @@
  */
 
 const Groq = require('groq-sdk');
+const log  = require('../utils/logger');
 
 const BASE = 'https://www.themealdb.com/api/json/v1/1';
 
@@ -194,21 +195,21 @@ async function getDishesForRestaurant(restaurantId, cuisines = [], restaurantNam
     try {
       const dishes = await fetchFromMealDb(restaurantId, cuisines);
       if (dishes.length >= 5) {
-        console.log(`🍽️  TheMealDB: ${dishes.length} dishes for restaurant #${restaurantId}`);
+        log.info({ source: 'mealdb', restaurantId, count: dishes.length }, 'Menu fetched');
         return dishes;
       }
     } catch (err) {
-      console.warn(`⚠️  TheMealDB: ${err.message}`);
+      log.warn({ err }, 'TheMealDB fetch failed');
     }
   }
 
   // Groq AI menu generator (Indian cuisines or fallback)
   try {
     const dishes = await generateMenuWithGroq(restaurantId, restaurantName || `Restaurant #${restaurantId}`, cuisines);
-    console.log(`🤖 Groq menu: ${dishes.length} dishes for restaurant #${restaurantId}`);
+    log.info({ source: 'groq-menu', restaurantId, count: dishes.length }, 'Menu generated');
     return dishes;
   } catch (err) {
-    console.warn(`⚠️  Groq menu: ${err.message}`);
+    log.warn({ err }, 'Groq menu generation failed');
   }
 
   // Last resort: TheMealDB (even if wrong cuisine)
