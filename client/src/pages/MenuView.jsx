@@ -111,7 +111,27 @@ export default function MenuView() {
     });
   };
 
-  const allItems   = Object.values(menu).flat();
+  // Dietary filter — enforce member's own restrictions on the menu they see
+  const memberIsVeg  = (me?.diet || []).includes('veg');
+  const memberIsJain = (me?.diet || []).includes('jain');
+
+  const allItems = Object.values(menu).flat().filter((item) => {
+    if (memberIsJain && !item.jainFriendly) return false;
+    if (memberIsVeg  && !item.veg)          return false;
+    return true;
+  });
+
+  // Rebuild filtered menu (same category structure, items filtered)
+  const filteredMenu = {};
+  Object.entries(menu).forEach(([cat, items]) => {
+    const filtered = items.filter((item) => {
+      if (memberIsJain && !item.jainFriendly) return false;
+      if (memberIsVeg  && !item.veg)          return false;
+      return true;
+    });
+    if (filtered.length > 0) filteredMenu[cat] = filtered;
+  });
+
   const cartItems  = Object.entries(cart)
     .map(([code, qty]) => { const item = allItems.find((i) => i.itemCode === code); return item ? { ...item, qty } : null; })
     .filter(Boolean);
@@ -136,7 +156,7 @@ export default function MenuView() {
   };
 
   const CAT_ORDER = ['Starters','Main Course','Breads','Rice & Biryani','Pizzas','Pasta','Burgers','Wraps','Breakfast','Desserts','Beverages'];
-  const sortedCategories = Object.keys(menu).sort((a, b) => {
+  const sortedCategories = Object.keys(filteredMenu).sort((a, b) => {
     const ia = CAT_ORDER.indexOf(a), ib = CAT_ORDER.indexOf(b);
     if (ia === -1 && ib === -1) return a.localeCompare(b);
     if (ia === -1) return 1; if (ib === -1) return -1;
@@ -270,9 +290,19 @@ export default function MenuView() {
         </span>
         <div style={s.vegLegend}>
           <span style={s.vegDot} /><span style={{ fontSize: font.size.xs, color: colors.text.muted }}>Veg</span>
-          <span style={{ ...s.vegDot, background: colors.nonVeg, marginLeft: 10 }} /><span style={{ fontSize: font.size.xs, color: colors.text.muted }}>Non-veg</span>
+          {!memberIsVeg && <><span style={{ ...s.vegDot, background: colors.nonVeg, marginLeft: 10 }} /><span style={{ fontSize: font.size.xs, color: colors.text.muted }}>Non-veg</span></>}
         </div>
       </div>
+
+      {/* ── Dietary filter banner ────────────────────────────────────────── */}
+      {(memberIsVeg || memberIsJain) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'rgba(16,185,129,0.07)', borderBottom: `1px solid rgba(16,185,129,0.15)`, fontSize: font.size.sm, color: colors.green?.text || '#059669' }}>
+          <span>{memberIsJain ? '🌿' : '🥦'}</span>
+          <span>
+            Showing <strong>{memberIsJain ? 'Jain' : 'veg'} items only</strong> based on your preference
+          </span>
+        </div>
+      )}
 
       {/* ── AI Suggestions ───────────────────────────────────────────────── */}
       {(suggestionsLoading || suggestions.length > 0) && (
@@ -353,7 +383,7 @@ export default function MenuView() {
           <div key={category} id={`cat-${category}`} style={s.section}>
             <h2 style={s.catTitle}>{category}</h2>
             <div style={s.itemList}>
-              {menu[category].map((item) => {
+              {filteredMenu[category].map((item) => {
                 const qty      = cart[item.itemCode] || 0;
                 const thumbUrl = itemPhotos[item.itemCode];
                 return (

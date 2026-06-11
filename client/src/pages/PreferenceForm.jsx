@@ -89,7 +89,14 @@ export default function PreferenceForm() {
         diet:       diet.length   > 0 ? diet    : ['none'],
         budget,
       });
-      localStorage.setItem(`member_${sessionId}`, JSON.stringify({ ...me, hasSubmittedPreference: true }));
+      // Save diet + cuisine + budget so MenuView can filter items for this member
+      localStorage.setItem(`member_${sessionId}`, JSON.stringify({
+        ...me,
+        hasSubmittedPreference: true,
+        diet:    diet.length   > 0 ? diet    : ['none'],
+        cuisine: cuisine.length > 0 ? cuisine : ['Any'],
+        budget,
+      }));
       navigate(`/session/${sessionId}`);
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong. Try again.');

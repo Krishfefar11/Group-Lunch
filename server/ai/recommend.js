@@ -411,9 +411,18 @@ async function recommend(preferences, restaurants) {
     return true;
   });
 
-  // Graceful fallback: relax jain first, then veg, then use everything
-  if (pool.length < 3) pool = restaurants.filter((r) => needsVeg ? r.vegFriendly : true);
-  if (pool.length < 3) pool = restaurants;
+  // Graceful fallback — relax only if truly no options available.
+  // NEVER silently show non-veg restaurants to a veg user unless there are zero veg options.
+  if (pool.length === 0 && needsJain) {
+    // No jain restaurants — try veg-only as a compromise
+    pool = restaurants.filter((r) => r.vegFriendly);
+  }
+  if (pool.length === 0 && needsVeg) {
+    // No veg restaurants at all in DB — log a warning, use everything as last resort
+    log.warn({ needsVeg, needsJain, total: restaurants.length }, 'No veg restaurants found — using full pool');
+    pool = restaurants;
+  }
+  if (pool.length === 0) pool = restaurants; // absolute last resort
 
   // ── Primary: LLM recommendation ─────────────────────────────────────────
   try {
