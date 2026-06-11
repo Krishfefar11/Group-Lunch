@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../socket/socket.js';
+import useSocketReconnect from '../hooks/useSocketReconnect';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
@@ -105,6 +106,9 @@ export default function TrackingPage() {
     return () => { socket.off('order_placed'); socket.disconnect(); };
   }, [sessionId, loadData]);
 
+  // Reconnect guard — re-join session room and re-fetch order data on reconnect
+  const { online } = useSocketReconnect(sessionId, loadData);
+
   // ── Derived values ────────────────────────────────────────────────────────
   const restaurant  = sessionData?.restaurant;
   const grandTotal  = orders.reduce((s, o) => s + parseFloat(o.subtotal || 0), 0);
@@ -158,6 +162,15 @@ export default function TrackingPage() {
   return (
     <div style={s.page}>
       <div style={s.blob} />
+
+      {/* ── Offline banner ────────────────────────────────────────────────── */}
+      {!online && (
+        <div style={s.offlineBanner}>
+          <span style={s.offlineDot} />
+          Connection lost · Reconnecting…
+        </div>
+      )}
+
       <div style={s.wrapper}>
 
         {/* ── Hero confirmation card ────────────────────────────────────── */}
@@ -447,4 +460,7 @@ const s = {
   // Back
   homeBtn:   { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '13px', borderRadius: radius.xl, background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, fontSize: font.size.base, fontWeight: font.weight.medium, cursor: 'pointer', transition: transition.base, marginTop: 4 },
   outlineBtn:{ background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.base, cursor: 'pointer', padding: '11px 24px', transition: transition.base },
+
+  offlineBanner: { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999, background: 'rgba(220,38,38,0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#fff', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: font.size.sm, fontWeight: font.weight.semibold, fontFamily: font.family, letterSpacing: '0.01em' },
+  offlineDot:    { width: 8, height: 8, borderRadius: '50%', background: '#fff', flexShrink: 0, animation: 'pulse 1.5s ease infinite' },
 };

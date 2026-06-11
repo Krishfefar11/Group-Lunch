@@ -1,16 +1,50 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import ChatBot         from './components/ChatBot';
+import ChatBot from './components/ChatBot';
+import { colors, font } from './design-system/tokens';
+
+// ── Critical path — loaded immediately (always needed on first render) ─────────
 import Home            from './pages/Home';
 import CreateSession   from './pages/CreateSession';
 import JoinSession     from './pages/JoinSession';
-import PreferenceForm  from './pages/PreferenceForm';
-import RestaurantPicker from './pages/RestaurantPicker';
-import MenuView        from './pages/MenuView';
-import CartView        from './pages/CartView';
-import FinalReview     from './pages/FinalReview';
-import TrackingPage    from './pages/TrackingPage';
-import AdminPanel      from './pages/AdminPanel';
-import { colors, font } from './design-system/tokens';
+
+// ── Lazy-loaded routes — each becomes its own JS chunk ────────────────────────
+// These pages are only needed after the user is already in a session,
+// so we defer their download until they're actually navigated to.
+const PreferenceForm   = lazy(() => import('./pages/PreferenceForm'));
+const RestaurantPicker = lazy(() => import('./pages/RestaurantPicker'));
+const MenuView         = lazy(() => import('./pages/MenuView'));
+const CartView         = lazy(() => import('./pages/CartView'));
+const FinalReview      = lazy(() => import('./pages/FinalReview'));
+const TrackingPage     = lazy(() => import('./pages/TrackingPage'));
+const AdminPanel       = lazy(() => import('./pages/AdminPanel'));
+
+// ── Suspense fallback ──────────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div style={{
+      minHeight:      '100vh',
+      display:        'flex',
+      alignItems:     'center',
+      justifyContent: 'center',
+      background:     colors.bg.base,
+      flexDirection:  'column',
+      gap:            16,
+    }}>
+      <span style={{ fontSize: 44, animation: 'float 2.5s ease infinite' }}>🍽️</span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[0,1,2].map((i) => (
+          <div key={i} style={{
+            width:  8, height: 8, borderRadius: '50%',
+            background: '#F0A500',
+            animation: `pulse 1.4s ease infinite`,
+            animationDelay: `${i * 0.22}s`,
+          }} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── Inject global styles & font ───────────────────────────────────────────────
 const globalStyle = document.createElement('style');
@@ -225,7 +259,8 @@ globalStyle.textContent = `
   .animate-fade-in    { animation: fadeIn     0.32s ease forwards; }
   .animate-scale-in   { animation: scaleIn    0.32s cubic-bezier(0.22,1,0.36,1) forwards; }
   .animate-scale-up   { animation: scaleUp    0.42s cubic-bezier(0.22,1,0.36,1) forwards; }
-  .animate-slide-left { animation: slideLeft  0.4s cubic-bezier(0.22,1,0.36,1) forwards; }
+  .animate-slide-left { animation: slideLeft  0.4s  cubic-bezier(0.22,1,0.36,1) forwards; }
+  .animate-slide-up   { animation: slideUp    0.36s cubic-bezier(0.22,1,0.36,1) forwards; }
 
   /* Staggered children — add class to parent */
   .stagger-children > * { opacity: 0; animation: fadeUp 0.48s cubic-bezier(0.22,1,0.36,1) forwards; }
@@ -319,6 +354,24 @@ globalStyle.textContent = `
   @media (min-width: 641px) {
     .show-mobile-only { display: none !important; }
   }
+
+  /* ── Touch-friendly tap targets on mobile ──────────────────────────────── */
+  @media (max-width: 640px) {
+    button { min-height: 40px; }
+    input  { min-height: 44px; font-size: 16px !important; } /* prevents zoom on iOS */
+  }
+
+  /* ── Prevent content shift when scrollbar appears ──────────────────────── */
+  html { scrollbar-gutter: stable; }
+
+  /* ── Smooth transitions for interactive elements ────────────────────────── */
+  a, button { cursor: pointer; }
+
+  /* ── Better image rendering ─────────────────────────────────────────────── */
+  img { max-width: 100%; display: block; }
+
+  /* ── Ensure emoji renders consistently ─────────────────────────────────── */
+  .emoji { font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif; }
 `;
 document.head.appendChild(globalStyle);
 
@@ -326,6 +379,7 @@ export default function App() {
   return (
     <Router>
       <ChatBot />
+      <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route path="/"                                    element={<Home />} />
         <Route path="/create"                              element={<CreateSession />} />
@@ -365,6 +419,7 @@ export default function App() {
           </div>
         } />
       </Routes>
+      </Suspense>
     </Router>
   );
 }

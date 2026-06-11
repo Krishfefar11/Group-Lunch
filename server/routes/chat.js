@@ -1,7 +1,9 @@
 const express = require('express');
-const router  = express.Router();
+const router  = require('express').Router();
 const Groq    = require('groq-sdk');
 const { Restaurant, Preference, Session } = require('../models/index');
+const { safeParse } = require('../ai/schemas');
+const { z }         = require('zod');
 
 // ── POST /api/sessions/:sessionId/chat ────────────────────────────────────────
 router.post('/:sessionId/chat', async (req, res) => {
@@ -94,30 +96,24 @@ For all other responses:
 
     const raw = completion.choices[0]?.message?.content?.trim() || '';
 
-    // Extract JSON even when the model prefixes it with plain text
-    let parsed;
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      const clean     = jsonMatch
-        ? jsonMatch[0]
-        : raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-      parsed = JSON.parse(clean);
-    } catch {
-      parsed = { reply: raw };
-    }
+    // ── Zod-validated parsing (replaces fragile regex approach) ──────────────
+    const ChatResponseSchema = z.object({
+      reply:  z.string().min(1),
+      action: z.object({
+        type:    z.string(),
+        cuisine: z.array(z.string()).optional(),
+        diet:    z.array(z.string()).optional(),
+        budget:  z.string().optional(),
+      }).optional().nullable(),
+    });
 
-    // Handle nested JSON: model sometimes wraps the response as {"reply":"{\"reply\":...}"}
-    if (parsed.reply && typeof parsed.reply === 'string' && parsed.reply.trim().startsWith('{')) {
-      try {
-        const inner = JSON.parse(parsed.reply);
-        if (inner.reply) parsed = inner;
-      } catch { /* not nested JSON, keep as-is */ }
-    }
+    const { data: parsed } = safeParse(ChatResponseSchema, raw);
 
+    const rawFallbackReply = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     res.json({
       success: true,
-      reply:   parsed.reply  || "I didn't quite get that — try rephrasing?",
-      action:  parsed.action || null,
+      reply:   (parsed && parsed.reply) ? parsed.reply : (rawFallbackReply || "I didn't quite get that — try rephrasing?"),
+      action:  (parsed && parsed.action) ? parsed.action : null,
     });
   } catch (err) {
     console.error('Chat error:', err.message);

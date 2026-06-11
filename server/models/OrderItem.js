@@ -36,6 +36,11 @@ const OrderItem = sequelize.define('OrderItem', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  notes: {
+    type:         DataTypes.STRING(120),
+    allowNull:    true,
+    defaultValue: null,
+  },
 }, {
   tableName: 'order_items',
   timestamps: false,

@@ -12,6 +12,7 @@ export default function CreateSession() {
   const [error, setError]      = useState('');
   const [created, setCreated]  = useState(null);
   const [copied, setCopied]    = useState(false);
+  const shareSupported = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -41,6 +42,20 @@ export default function CreateSession() {
     navigator.clipboard.writeText(created.sessionUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2200);
+  };
+
+  const handleShare = async () => {
+    if (created && shareSupported) {
+      try {
+        await navigator.share({
+          title: 'Join my group lunch!',
+          text: "I'm organizing a group lunch — pick your preferences and let AI choose the best restaurant for us!",
+          url: created.sessionUrl,
+        });
+      } catch { /* user cancelled */ }
+    } else {
+      handleCopy();
+    }
   };
 
   return (
@@ -193,18 +208,33 @@ export default function CreateSession() {
               <span style={s.linkText}>{created.sessionUrl}</span>
             </div>
 
-            <button
-              style={{ ...s.primaryBtn, marginBottom: 10 }}
-              onClick={handleCopy}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
-            >
-              {copied ? (
-                <><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg> Copied!</>
-              ) : (
-                <><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" strokeWidth="2"/></svg> Copy Link</>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <button
+                style={{ ...s.primaryBtn, flex: 1 }}
+                onClick={handleCopy}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(240,165,0,0.4)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 20px rgba(240,165,0,0.28)'; }}
+              >
+                {copied ? (
+                  <><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg> Copied!</>
+                ) : (
+                  <><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" strokeWidth="2"/></svg> Copy Link</>
+                )}
+              </button>
+              {shareSupported && (
+                <button
+                  style={{ ...s.primaryBtn, flex: 'none', padding: '14px 18px', background: 'rgba(240,165,0,0.12)', color: colors.gold.bright, border: `1px solid rgba(240,165,0,0.25)`, boxShadow: 'none' }}
+                  onClick={handleShare}
+                  title="Share via system share sheet"
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(240,165,0,0.2)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(240,165,0,0.12)'; e.currentTarget.style.transform = ''; }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
               )}
-            </button>
+            </div>
 
             <button
               style={s.outlineBtn}

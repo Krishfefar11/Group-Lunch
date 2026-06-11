@@ -1,0 +1,63 @@
+# render.yaml — Render.com service configuration
+# Docs: https://render.com/docs/render-yaml-spec
+#
+# Deploy: connect your GitHub repo on render.com and this file
+# auto-configures the web service. Set the secret env vars manually
+# in the Render dashboard (Environment tab).
+
+services:
+  - type: web
+    name: group-lunch-api
+    runtime: node
+    region: singapore          # change to: ohio | oregon | frankfurt | singapore
+    plan: free                 # free tier — sleeps after 15 min inactivity
+
+    rootDir: server            # all commands run from the server/ folder
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+
+    healthCheckPath: /api/health
+
+    # Auto-deploy whenever you push to main
+    autoDeploy: true
+
+    envVars:
+      # ── App ──────────────────────────────────────────────────────────────
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000            # Render always exposes on 10000; we read PORT in server.js
+
+      # ── Database (Aiven MySQL) — set values in Render dashboard ──────────
+      - key: DB_HOST
+        sync: false             # "sync: false" = you must fill this in the dashboard
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_SSL
+        value: "true"           # Aiven requires SSL
+
+      # ── Client origin (set after you deploy to Vercel) ───────────────────
+      - key: CLIENT_URL
+        sync: false             # e.g. https://group-lunch.vercel.app
+
+      # ── API Keys — set in Render dashboard, never commit these ───────────
+      - key: GROQ_API_KEY
+        sync: false
+      - key: FOURSQUARE_API_KEY
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_UPLOAD_PRESET
+        sync: false

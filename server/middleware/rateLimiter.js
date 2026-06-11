@@ -40,4 +40,28 @@ const chatLimiter = isDev
       keyGenerator:    (req) => ipKeyGenerator(req) + ':chat:' + (req.params.sessionId || ''),
     });
 
-module.exports = { apiLimiter, aiLimiter, chatLimiter };
+// ── Session create limiter — prevent session spam ────────────────────────────
+// 5 new sessions per IP per minute (max 1 every 12 s)
+const createLimiter = isDev
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs:        60 * 1000,
+      max:             5,
+      standardHeaders: true,
+      legacyHeaders:   false,
+      message:         { success: false, message: 'Too many sessions created — wait a moment.' },
+    });
+
+// ── Session join limiter — prevent brute-force UUID guessing ─────────────────
+// 10 join attempts per IP per minute
+const joinLimiter = isDev
+  ? (req, res, next) => next()
+  : rateLimit({
+      windowMs:        60 * 1000,
+      max:             10,
+      standardHeaders: true,
+      legacyHeaders:   false,
+      message:         { success: false, message: 'Too many join attempts — wait a moment.' },
+    });
+
+module.exports = { apiLimiter, aiLimiter, chatLimiter, createLimiter, joinLimiter };

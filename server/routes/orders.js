@@ -111,7 +111,7 @@ router.post('/:sessionId/orders', async (req, res) => {
       });
     }
 
-    // Insert new order items
+    // Insert new order items (notes trimmed & capped at 120 chars for safety)
     const orderItems = items.map((i) => ({
       orderId:  order.id,
       itemCode: i.itemCode,
@@ -119,6 +119,7 @@ router.post('/:sessionId/orders', async (req, res) => {
       price:    i.price,
       qty:      i.qty,
       veg:      i.veg ?? true,
+      notes:    i.notes ? String(i.notes).trim().slice(0, 120) : null,
     }));
     await OrderItem.bulkCreate(orderItems);
 

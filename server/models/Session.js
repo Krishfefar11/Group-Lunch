@@ -95,6 +95,13 @@ const Session = sequelize.define('Session', {
     defaultValue: null,
     field: 'order_url',
   },
+  // Session auto-expires 24 h after creation so the DB doesn't fill up forever
+  expiresAt: {
+    type:         DataTypes.DATE,
+    allowNull:    true,
+    defaultValue: null,
+    field:        'expires_at',
+  },
 }, {
   tableName: 'sessions',
   timestamps: true,

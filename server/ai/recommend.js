@@ -528,4 +528,18 @@ async function recommend(preferences, restaurants) {
   return topsisRecommend(pool, preferences);
 }
 
-module.exports = { recommend };
+module.exports = {
+  recommend,
+  // Also exported directly for use in agents/executor
+  detectConflict,
+  topsisRecommend,
+  // Exported for unit tests — pure functions with no side effects
+  _test: {
+    memberSatisfaction,
+    buildCriteriaMatrix,
+    topsis,
+    detectConflict,
+    enforceDiversity,
+    topsisRecommend,
+  },
+};

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import socket from '../socket/socket.js';
+import useSocketReconnect from '../hooks/useSocketReconnect';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
@@ -74,6 +75,9 @@ export default function CartView() {
     };
   }, [sessionId, navigate, fetchCart]);
 
+  // Reconnect guard — re-join session room and re-fetch cart on socket reconnect
+  const { online } = useSocketReconnect(sessionId, fetchCart);
+
   useEffect(() => {
     if (session?.status && !['collecting','restaurant_picked','ordering'].includes(session.status)) {
       navigate(`/session/${sessionId}/tracking`);
@@ -140,6 +144,15 @@ export default function CartView() {
   return (
     <div style={s.page}>
       <div style={s.blob} />
+
+      {/* ── Offline banner ────────────────────────────────────────────────── */}
+      {!online && (
+        <div style={s.offlineBanner}>
+          <span style={s.offlineDot} />
+          Connection lost · Reconnecting…
+        </div>
+      )}
+
       <div style={s.wrapper}>
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -376,11 +389,16 @@ export default function CartView() {
 
               <div style={s.itemList}>
                 {(order.items || []).map((item, i) => (
-                  <div key={i} style={s.itemRow}>
-                    <span style={{ ...s.vegDot, background: item.veg ? colors.veg : colors.nonVeg }} />
-                    <span style={s.itemName}>{item.name}</span>
-                    <span style={s.itemQty}>×{item.qty}</span>
-                    <span style={s.itemPrice}>₹{item.price * item.qty}</span>
+                  <div key={i}>
+                    <div style={s.itemRow}>
+                      <span style={{ ...s.vegDot, background: item.veg ? colors.veg : colors.nonVeg }} />
+                      <span style={s.itemName}>{item.name}</span>
+                      <span style={s.itemQty}>×{item.qty}</span>
+                      <span style={s.itemPrice}>₹{item.price * item.qty}</span>
+                    </div>
+                    {item.notes && (
+                      <div style={s.itemNotes}>💬 {item.notes}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -503,6 +521,7 @@ const s = {
   itemQty:   { fontSize: font.size.sm, color: colors.text.muted, minWidth: 28, textAlign: 'right' },
   itemPrice: { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.text.primary, minWidth: 52, textAlign: 'right' },
 
+  itemNotes:  { fontSize: '11px', color: colors.text.muted, paddingLeft: 20, marginTop: 2, marginBottom: 4, fontStyle: 'italic' },
   editBtn:    { marginTop: 14, width: '100%', padding: '8px', borderRadius: radius.md, background: 'transparent', border: `1px solid ${colors.border.default}`, color: colors.text.muted, fontFamily: font.family, fontSize: font.size.sm, fontWeight: font.weight.medium, cursor: 'pointer', transition: transition.base },
 
   proceedBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: colors.gold.base, color: colors.text.inverse, border: 'none', borderRadius: radius.xl, fontFamily: font.family, fontSize: font.size.lg, fontWeight: font.weight.bold, cursor: 'pointer', padding: '16px', marginTop: 20, marginBottom: 12, transition: transition.base, boxShadow: '0 4px 20px rgba(240,165,0,0.25)', letterSpacing: '-0.01em' },
@@ -510,4 +529,7 @@ const s = {
   autoRefresh:{ textAlign: 'center', fontSize: font.size.xs, color: colors.text.muted, marginTop: 12, letterSpacing: '0.02em' },
   outlineBtn: { background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.base, cursor: 'pointer', padding: '11px 24px', transition: transition.base },
   goldBtn:    { display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.gold.base, color: colors.text.inverse, border: 'none', borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.base, fontWeight: font.weight.bold, cursor: 'pointer', padding: '12px 28px', transition: transition.base, boxShadow: '0 4px 20px rgba(240,165,0,0.25)', margin: '0 auto' },
+
+  offlineBanner: { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999, background: 'rgba(220,38,38,0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#fff', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: font.size.sm, fontWeight: font.weight.semibold, fontFamily: font.family, letterSpacing: '0.01em', animation: 'slideInUp 0.3s ease' },
+  offlineDot:    { width: 8, height: 8, borderRadius: '50%', background: '#fff', flexShrink: 0, animation: 'pulse 1.5s ease infinite' },
 };

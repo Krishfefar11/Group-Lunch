@@ -1,0 +1,22 @@
+{
+  "buildCommand": "npx webpack --config webpack.config.js --mode production",
+  "outputDirectory": "dist",
+  "installCommand": "npm ci",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/(.*).gz",
+      "headers": [
+        { "key": "Content-Encoding", "value": "gzip" }
+      ]
+    }
+  ]
+}

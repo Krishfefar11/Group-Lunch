@@ -2,12 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getSession } from '../api/api';
 import axios from 'axios';
+import socket from '../socket/socket';
 import emailjs from '@emailjs/browser';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
-const EMAILJS_SERVICE_ID  = 'service_otc1lzt';
-const EMAILJS_TEMPLATE_ID = 'template_501arc9';
-const EMAILJS_PUBLIC_KEY  = 'XNgoNgC1nTycBtxuz';
+// Keys injected at build time via webpack DefinePlugin — set in client/.env
+const EMAILJS_SERVICE_ID  = process.env.REACT_APP_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.REACT_APP_EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY  = process.env.REACT_APP_EMAILJS_PUBLIC_KEY;
 
 // ── Avatar component ──────────────────────────────────────────────────────────
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
@@ -109,8 +111,11 @@ export default function JoinSession() {
   const [inviteStatus,  setInviteStatus]  = useState('');
   const [inviteError,   setInviteError]   = useState('');
   const [sentList,      setSentList]      = useState([]);
+  const [claiming,      setClaiming]      = useState(false);
+  const [claimError,    setClaimError]    = useState('');
 
-  const sessionUrl = `${window.location.origin}/session/${sessionId}`;
+  const sessionUrl    = `${window.location.origin}/session/${sessionId}`;
+  const shareSupported = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
   const fetchSession = useCallback(async () => {
     try {
@@ -159,6 +164,20 @@ export default function JoinSession() {
     setTimeout(() => setCopied(false), 2200);
   };
 
+  const handleShare = async () => {
+    if (shareSupported) {
+      try {
+        await navigator.share({
+          title: `Join ${session?.organizerName || 'our'}'s group lunch!`,
+          text: `${session?.organizerName || 'Someone'} invited you to pick a restaurant together. Open GroupLunch →`,
+          url: sessionUrl,
+        });
+      } catch { /* user cancelled — no-op */ }
+    } else {
+      handleCopy();
+    }
+  };
+
   const handleSendInvite = async (e) => {
     e.preventDefault();
     if (!inviteName.trim() || !inviteEmail.trim()) { setInviteError('Both fields are required.'); return; }
@@ -189,6 +208,51 @@ export default function JoinSession() {
     setShowInvite(false); setInviteName(''); setInviteEmail('');
     setInviteStatus(''); setInviteError('');
   };
+
+  const handleClaimOrganizer = async () => {
+    if (!me?.memberId || claiming) return;
+    setClaiming(true);
+    setClaimError('');
+    try {
+      const res = await axios.post(`/api/sessions/${sessionId}/claim-organizer`, {
+        memberId: me.memberId,
+      });
+      if (res.data.success) {
+        // Update local identity to reflect organizer status
+        const updated = { ...me, isOrganizer: true };
+        localStorage.setItem(`member_${sessionId}`, JSON.stringify(updated));
+        setMe(updated);
+        fetchSession(); // Refresh session so organizerId reflects the change
+      }
+    } catch (err) {
+      setClaimError(err.response?.data?.message || 'Could not claim organizer role');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
+  // ── Socket: join session room + live organizer handoff ───────────────────
+  useEffect(() => {
+    if (!sessionId) return;
+    socket.connect();
+    socket.emit('join_session', sessionId);
+    const handleOrganizerChanged = ({ newOrganizerId, newOrganizerName }) => {
+      setSession((prev) =>
+        prev ? { ...prev, organizerId: newOrganizerId, organizerName: newOrganizerName } : prev
+      );
+      // Update local identity reactively if this user just became organizer
+      setMe((prevMe) => {
+        if (prevMe?.memberId === newOrganizerId) {
+          const updated = { ...prevMe, isOrganizer: true };
+          localStorage.setItem(`member_${sessionId}`, JSON.stringify(updated));
+          return updated;
+        }
+        return prevMe;
+      });
+    };
+    socket.on('organizer_changed', handleOrganizerChanged);
+    return () => { socket.off('organizer_changed', handleOrganizerChanged); };
+  }, [sessionId]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
@@ -221,6 +285,7 @@ export default function JoinSession() {
 
   return (
     <div style={s.page}>
+      <style>{INJECTED_CSS}</style>
       <div style={s.blob1} />
       <div style={s.blob2} />
 
@@ -329,6 +394,40 @@ export default function JoinSession() {
               ))}
             </div>
           )}
+
+          {/* ── Share strip ─────────────────────────────────────────────── */}
+          <div style={s.shareStrip} className="js-share-strip">
+            <div style={s.shareUrlRow}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" stroke={colors.text.secondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" stroke={colors.text.secondary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={s.shareUrlText}>{sessionUrl.replace(/^https?:\/\//, '')}</span>
+            </div>
+            <div style={s.shareBtns}>
+              <button
+                style={{ ...s.shareCopyBtn, ...(copied ? s.shareCopiedState : {}) }}
+                onClick={handleCopy}
+                onMouseEnter={(e) => { if (!copied) { e.currentTarget.style.borderColor = colors.border.strong; e.currentTarget.style.color = colors.text.primary; } }}
+                onMouseLeave={(e) => { if (!copied) { e.currentTarget.style.borderColor = colors.border.default; e.currentTarget.style.color = colors.text.secondary; } }}
+              >
+                {copied ? '✓ Copied!' : 'Copy Link'}
+              </button>
+              {shareSupported && (
+                <button
+                  style={s.shareMobileBtn}
+                  onClick={handleShare}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(240,165,0,0.18)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(240,165,0,0.1)'; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Share
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ── Join form (not yet joined) ────────────────────────────────── */}
@@ -423,6 +522,27 @@ export default function JoinSession() {
                 {isOrganizer && submittedCount < 2 && (
                   <p style={s.waitNote}>Waiting for at least 2 members to submit before recommending...</p>
                 )}
+
+                {/* Become Organizer — shown only to non-organizer members */}
+                {!isOrganizer && (
+                  <>
+                    <div style={s.claimDivider} />
+                    <button
+                      style={{ ...s.claimOrganizerBtn, opacity: claiming ? 0.7 : 1 }}
+                      onClick={handleClaimOrganizer}
+                      disabled={claiming}
+                      onMouseEnter={(e) => { if (!claiming) { e.currentTarget.style.borderColor = colors.border.strong; e.currentTarget.style.color = colors.text.primary; } }}
+                      onMouseLeave={(e) => { if (!claiming) { e.currentTarget.style.borderColor = colors.border.default; e.currentTarget.style.color = colors.text.secondary; } }}
+                    >
+                      {claiming
+                        ? <><span style={s.spinner} className="gl-spinner" /> Claiming…</>
+                        : <>👑 Become Organizer</>}
+                    </button>
+                    {claimError && (
+                      <p style={{ ...s.errorMsg, textAlign: 'center', marginTop: 2, marginBottom: 0 }}>{claimError}</p>
+                    )}
+                  </>
+                )}
               </>
             )}
           </div>
@@ -507,6 +627,13 @@ export default function JoinSession() {
     </div>
   );
 }
+
+const INJECTED_CSS = `
+  .js-share-strip { transition: background 0.2s; }
+  @media (max-width: 420px) {
+    .js-share-strip { flex-direction: column; align-items: flex-start !important; gap: 10px !important; }
+  }
+`;
 
 const s = {
   page: {
@@ -886,5 +1013,95 @@ const s = {
     padding:      '6px 12px',
     transition:   transition.fast,
     letterSpacing: '0.04em',
+  },
+  claimDivider: {
+    height:     1,
+    background: colors.border.subtle,
+    margin:     '4px 0',
+  },
+  claimOrganizerBtn: {
+    display:        'flex',
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            8,
+    width:          '100%',
+    background:     'transparent',
+    color:          colors.text.secondary,
+    border:         `1px solid ${colors.border.default}`,
+    borderRadius:   radius.lg,
+    fontFamily:     font.family,
+    fontSize:       font.size.sm,
+    fontWeight:     font.weight.medium,
+    cursor:         'pointer',
+    padding:        '11px',
+    transition:     transition.base,
+    letterSpacing:  '0.01em',
+  },
+  // Share strip
+  shareStrip: {
+    display:        'flex',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    gap:            10,
+    marginTop:      16,
+    paddingTop:     14,
+    borderTop:      `1px solid ${colors.border.subtle}`,
+    flexWrap:       'nowrap',
+  },
+  shareUrlRow: {
+    display:    'flex',
+    alignItems: 'center',
+    gap:        7,
+    minWidth:   0,
+    flex:       1,
+  },
+  shareUrlText: {
+    fontSize:     font.size.xs,
+    color:        colors.text.muted,
+    fontFamily:   'monospace',
+    overflow:     'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace:   'nowrap',
+    letterSpacing: 0,
+  },
+  shareBtns: {
+    display:   'flex',
+    gap:       6,
+    flexShrink: 0,
+  },
+  shareCopyBtn: {
+    background:    'transparent',
+    color:         colors.text.secondary,
+    border:        `1px solid ${colors.border.default}`,
+    borderRadius:  radius.md,
+    fontFamily:    font.family,
+    fontSize:      font.size.xs,
+    fontWeight:    font.weight.semibold,
+    cursor:        'pointer',
+    padding:       '6px 14px',
+    transition:    transition.fast,
+    letterSpacing: '0.03em',
+    whiteSpace:    'nowrap',
+  },
+  shareCopiedState: {
+    background:  colors.green.dim,
+    borderColor: 'rgba(16,185,129,0.3)',
+    color:       colors.green.text,
+  },
+  shareMobileBtn: {
+    display:       'flex',
+    alignItems:    'center',
+    gap:           5,
+    background:    'rgba(240,165,0,0.1)',
+    color:         colors.gold.bright,
+    border:        `1px solid rgba(240,165,0,0.2)`,
+    borderRadius:  radius.md,
+    fontFamily:    font.family,
+    fontSize:      font.size.xs,
+    fontWeight:    font.weight.semibold,
+    cursor:        'pointer',
+    padding:       '6px 12px',
+    transition:    transition.fast,
+    whiteSpace:    'nowrap',
   },
 };
