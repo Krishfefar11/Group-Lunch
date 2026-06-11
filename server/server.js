@@ -121,7 +121,6 @@ app.use('/api/sessions',    chatLimiter, require('./routes/chat'));         // p
 app.use('/api/sessions',    aiLimiter,   require('./routes/suggestions'));  // AI suggestions
 app.use('/api/sessions',    require('./routes/orders'));
 app.use('/api/sessions',    require('./routes/coupons'));
-app.use('/api/sessions',    require('./routes/payment'));
 app.use('/api/sessions',    require('./routes/agent'));    // A1–A8 agent endpoints
 
 // ── Root route ───────────────────────────────────────────────────────────────
