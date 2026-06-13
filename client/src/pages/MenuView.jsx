@@ -45,6 +45,9 @@ const INJECTED_CSS = `
   .mv-cat-nav::-webkit-scrollbar { display: none; }
   .mv-suggest-scroll::-webkit-scrollbar { display: none; }
   .mv-cat-tab:hover { color: #f4520f !important; }
+  .mv-search-input:focus { outline: none; border-color: #f0a500 !important; box-shadow: 0 0 0 3px rgba(240,165,0,0.12) !important; }
+  .mv-filter-chip:hover { border-color: #f4520f !important; color: #f4520f !important; }
+  .mv-item-card:hover .mv-thumb { transform: scale(1.05); }
   @media (max-width: 480px) {
     .mv-hero { height: 200px !important; }
     .mv-hero-name { font-size: 18px !important; }
@@ -85,6 +88,8 @@ export default function MenuView() {
   const [suggestionsLoading,setSuggestionsLoading] = useState(false);
   const [itemNotes,         setItemNotes]          = useState({});   // itemCode → note string
   const [onlineMembers,     setOnlineMembers]      = useState([]);   // live presence list
+  const [searchQuery,       setSearchQuery]        = useState('');   // free-text search
+  const [quickFilter,       setQuickFilter]        = useState('');   // '' | 'veg' | 'spicy' | 'bestseller' | 'must-try' | 'healthy'
 
   useEffect(() => {
     const stored = localStorage.getItem(`member_${sessionId}`);
@@ -241,15 +246,40 @@ export default function MenuView() {
     return true;
   });
 
+  // Search + quick-filter matching
+  const searchLower = searchQuery.trim().toLowerCase();
+  const matchesSearch = (item) => {
+    if (!searchLower) return true;
+    return (
+      item.name.toLowerCase().includes(searchLower) ||
+      (item.description || '').toLowerCase().includes(searchLower) ||
+      (item.tags || []).some((t) => t.toLowerCase().includes(searchLower)) ||
+      item.category.toLowerCase().includes(searchLower)
+    );
+  };
+  const matchesQuickFilter = (item) => {
+    if (!quickFilter) return true;
+    if (quickFilter === 'veg')        return item.veg;
+    if (quickFilter === 'spicy')      return (item.tags || []).includes('spicy');
+    if (quickFilter === 'bestseller') return (item.tags || []).includes('bestseller');
+    if (quickFilter === 'must-try')   return (item.tags || []).includes('must-try');
+    if (quickFilter === 'healthy')    return (item.tags || []).includes('healthy');
+    return true;
+  };
+
   const filteredMenu = {};
   Object.entries(menu).forEach(([cat, items]) => {
     const filtered = items.filter((item) => {
       if (memberIsJain && !item.jainFriendly) return false;
       if (memberIsVeg  && !item.veg)          return false;
+      if (!matchesSearch(item))               return false;
+      if (!matchesQuickFilter(item))          return false;
       return true;
     });
     if (filtered.length > 0) filteredMenu[cat] = filtered;
   });
+
+  const totalFilteredItems = Object.values(filteredMenu).flat().length;
 
   const cartItems = Object.entries(cart)
     .map(([code, qty]) => {
@@ -533,8 +563,9 @@ export default function MenuView() {
         </div>
       )}
 
-      {/* ── Category nav (sticky) ───────────────────────────────────────────── */}
+      {/* ── Category nav + search (sticky block) ──────────────────────────── */}
       <div style={s.catNavWrap}>
+        {/* Category tabs */}
         <div style={s.catNav} className="mv-cat-nav">
           {sortedCategories.map((cat) => (
             <button
@@ -553,6 +584,65 @@ export default function MenuView() {
               </span>
             </button>
           ))}
+        </div>
+
+        {/* ── Search + quick-filter row ─────────────────────────────────────── */}
+        <div style={s.searchRow}>
+          {/* Search input */}
+          <div style={s.searchWrap}>
+            <svg style={s.searchIcon} width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.6"/>
+              <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+            </svg>
+            <input
+              className="mv-search-input"
+              style={s.searchInput}
+              type="text"
+              placeholder="Search dishes, ingredients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button style={s.searchClear} onClick={() => setSearchQuery('')}>✕</button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Quick-filter chips ────────────────────────────────────────────── */}
+        <div style={s.filterRow}>
+          {[
+            { key: '',           label: 'All',         emoji: '✦' },
+            { key: 'veg',        label: 'Veg',         emoji: '🥦' },
+            { key: 'bestseller', label: 'Bestseller',  emoji: '🔥' },
+            { key: 'must-try',   label: 'Must-Try',    emoji: '⭐' },
+            { key: 'spicy',      label: 'Spicy',       emoji: '🌶️' },
+            { key: 'healthy',    label: 'Healthy',     emoji: '💚' },
+          ].map(({ key, label, emoji }) => {
+            const active = quickFilter === key;
+            return (
+              <button
+                key={key}
+                className="mv-filter-chip"
+                style={{
+                  ...s.filterChip,
+                  ...(active ? s.filterChipActive : {}),
+                }}
+                onClick={() => setQuickFilter(active ? '' : key)}
+              >
+                <span style={{ fontSize: 11 }}>{emoji}</span>
+                {label}
+                {active && key !== '' && (
+                  <span style={s.filterChipCount}>{totalFilteredItems}</span>
+                )}
+              </button>
+            );
+          })}
+          {/* Live result count when searching */}
+          {(searchQuery || quickFilter) && (
+            <span style={s.searchCount}>
+              {totalFilteredItems} result{totalFilteredItems !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
       </div>
 
@@ -641,7 +731,7 @@ export default function MenuView() {
                       {/* Image (real or emoji fallback) */}
                       <div style={s.thumbWrap} className="mv-thumb-wrap">
                         {thumbUrl ? (
-                          <img src={thumbUrl} alt={item.name} style={s.thumb} />
+                          <img src={thumbUrl} alt={item.name} style={s.thumb} className="mv-thumb" />
                         ) : (
                           <div style={s.thumbFallback}>
                             <span style={{ fontSize: 28, lineHeight: 1 }}>{fallbackEmoji}</span>
@@ -692,7 +782,21 @@ export default function MenuView() {
           </button>
         )}
 
-        {itemCount === 0 && (
+        {/* Search / filter empty state */}
+        {(searchQuery || quickFilter) && totalFilteredItems === 0 && (
+          <div style={s.emptySearch}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+            <p style={s.emptySearchTitle}>No dishes found</p>
+            <p style={s.emptySearchSub}>
+              {searchQuery ? `Nothing matching "${searchQuery}"` : `No ${quickFilter} items in this menu`}
+            </p>
+            <button style={s.emptySearchClear} onClick={() => { setSearchQuery(''); setQuickFilter(''); }}>
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {itemCount === 0 && !searchQuery && !quickFilter && (
           <p style={s.emptyHint}>Browse the menu and tap <strong>+ ADD</strong> to build your order</p>
         )}
 
@@ -916,4 +1020,24 @@ const s = {
   // ── Offline banner ────────────────────────────────────────────────────────
   offlineBanner:  { position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999, background: 'rgba(220,38,38,0.95)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', color: '#fff', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: font.size.sm, fontWeight: font.weight.semibold, fontFamily: font.family, letterSpacing: '0.01em', animation: 'slideInUp 0.3s ease' },
   offlineDot:     { width: 8, height: 8, borderRadius: '50%', background: '#fff', flexShrink: 0, animation: 'pulse 1.5s ease infinite' },
+
+  // ── Search bar ────────────────────────────────────────────────────────────
+  searchRow:  { display: 'flex', alignItems: 'center', padding: '8px 12px 6px', borderTop: `1px solid ${colors.border.subtle}` },
+  searchWrap: { position: 'relative', flex: 1, display: 'flex', alignItems: 'center' },
+  searchIcon: { position: 'absolute', left: 10, color: colors.text.muted, pointerEvents: 'none', flexShrink: 0 },
+  searchInput:{ width: '100%', background: colors.bg.raised, border: `1.5px solid ${colors.border.default}`, borderRadius: radius.lg, color: colors.text.primary, fontFamily: font.family, fontSize: font.size.sm, padding: '8px 32px 8px 30px', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s ease, box-shadow 0.15s ease' },
+  searchClear:{ position: 'absolute', right: 8, background: 'none', border: 'none', color: colors.text.muted, fontSize: 12, cursor: 'pointer', padding: '4px', borderRadius: '50%', lineHeight: 1, fontFamily: font.family },
+
+  // ── Quick-filter chips ────────────────────────────────────────────────────
+  filterRow:  { display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px 10px', overflowX: 'auto', scrollbarWidth: 'none' },
+  filterChip: { display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 11px', borderRadius: radius.full, background: colors.bg.raised, border: `1.5px solid ${colors.border.subtle}`, color: colors.text.secondary, fontSize: '11px', fontWeight: font.weight.semibold, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.15s, color 0.15s, background 0.15s', fontFamily: font.family, flexShrink: 0 },
+  filterChipActive: { background: colors.gold.dim, border: `1.5px solid ${colors.gold.base}`, color: colors.gold.base },
+  filterChipCount:  { marginLeft: 3, background: colors.gold.base, color: '#fff', borderRadius: radius.full, fontSize: '9px', fontWeight: font.weight.bold, padding: '1px 5px', lineHeight: 1.4 },
+  searchCount:{ fontSize: '11px', color: colors.text.muted, whiteSpace: 'nowrap', marginLeft: 4, fontWeight: font.weight.medium },
+
+  // ── Search empty state ────────────────────────────────────────────────────
+  emptySearch:      { textAlign: 'center', padding: '48px 20px', marginTop: 8 },
+  emptySearchTitle: { fontSize: font.size.lg, fontWeight: font.weight.bold, color: colors.text.primary, marginBottom: 6 },
+  emptySearchSub:   { fontSize: font.size.sm, color: colors.text.muted, marginBottom: 20 },
+  emptySearchClear: { background: 'transparent', border: `1px solid ${colors.border.default}`, borderRadius: radius.lg, color: colors.text.secondary, fontFamily: font.family, fontSize: font.size.sm, cursor: 'pointer', padding: '9px 20px', transition: transition.base },
 };
