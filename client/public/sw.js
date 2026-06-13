@@ -10,7 +10,7 @@
  * Cache is versioned so old entries are evicted on activation.
  */
 
-const CACHE   = 'grouplunch-v2';
+const CACHE   = 'grouplunch-v3';
 const SHELL   = ['/'];          // minimal pre-cache on install
 
 // ── Install ──────────────────────────────────────────────────────────────────
