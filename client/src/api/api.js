@@ -1,8 +1,12 @@
 import axios from 'axios';
 
+// In production REACT_APP_SERVER_URL = https://group-lunch.onrender.com
+// In development it falls back to localhost:8000
+const BASE = process.env.REACT_APP_SERVER_URL || 'http://localhost:8000';
+
 // All API calls go through this base instance
 const API = axios.create({
-  baseURL: '/api',
+  baseURL: `${BASE}/api`,
   headers: { 'Content-Type': 'application/json' },
 });
 
