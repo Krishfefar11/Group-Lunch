@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
-import { getAdminDashboard } from '../api/api';
+import axios from 'axios'; // Cloudinary upload only — do NOT use for backend calls
+import API, { getAdminDashboard } from '../api/api';
 import { searchPhotos, photoUrl, trackDownload } from '../utils/unsplash';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
@@ -233,7 +233,7 @@ export default function AdminPanel() {
   useEffect(() => {
     if (tab !== 'restaurants' || restaurants.length > 0) return;
     setRestLoading(true);
-    axios.get('/api/restaurants')
+    API.get('/restaurants')
       .then((res) => setRestaurants(res.data.data || []))
       .finally(() => setRestLoading(false));
   }, [tab]);
@@ -263,7 +263,7 @@ export default function AdminPanel() {
     setUploading((p) => ({ ...p, [id]: true }));
     try {
       const url = await uploadToCloudinary(file);
-      await axios.patch(`/api/restaurants/${id}/image`, { imageUrl: url });
+      await API.patch(`/restaurants/${id}/image`, { imageUrl: url });
       setRestaurants((p) => p.map((r) => r.id === id ? { ...r, imageUrl: url } : r));
       setUploadSuccess((p) => ({ ...p, [id]: true }));
       setTimeout(() => setUploadSuccess((p) => ({ ...p, [id]: false })), 3000);
@@ -293,7 +293,7 @@ export default function AdminPanel() {
     const url = photoUrl(photo, 'regular');
     setSavingUnsplash((p) => ({ ...p, [id]: true }));
     try {
-      await axios.patch(`/api/restaurants/${id}/image`, { imageUrl: url });
+      await API.patch(`/restaurants/${id}/image`, { imageUrl: url });
       trackDownload(photo);
       setRestaurants((p) => p.map((r) => r.id === id ? { ...r, imageUrl: url } : r));
       setUnsplashOpen((p) => ({ ...p, [id]: false }));

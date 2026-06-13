@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSession } from '../api/api';
-import axios from 'axios';
+import { getSession, joinSession as apiJoinSession } from '../api/api';
+import API from '../api/api';
 import socket from '../socket/socket';
 import emailjs from '@emailjs/browser';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
@@ -145,7 +145,7 @@ export default function JoinSession() {
     setJoining(true);
     setJoinError('');
     try {
-      const res = await axios.post(`/api/sessions/${sessionId}/join`, { memberName: joinName.trim() });
+      const res = await apiJoinSession(sessionId, { memberName: joinName.trim() });
       const { memberId, memberName } = res.data.data;
       const identity = { memberId, memberName, isOrganizer: false };
       localStorage.setItem(`member_${sessionId}`, JSON.stringify(identity));
@@ -214,7 +214,7 @@ export default function JoinSession() {
     setClaiming(true);
     setClaimError('');
     try {
-      const res = await axios.post(`/api/sessions/${sessionId}/claim-organizer`, {
+      const res = await API.post(`/sessions/${sessionId}/claim-organizer`, {
         memberId: me.memberId,
       });
       if (res.data.success) {

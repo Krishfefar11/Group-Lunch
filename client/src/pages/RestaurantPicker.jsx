@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api/api';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 import AgentPanel from '../components/AgentPanel';
 
@@ -56,7 +56,7 @@ export default function RestaurantPicker() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.post(`/api/sessions/${sessionId}/recommend`);
+      const res = await API.post(`/sessions/${sessionId}/recommend`);
       setResults(res.data.data);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load recommendations.');
@@ -87,8 +87,8 @@ export default function RestaurantPicker() {
     setSelecting(pendingId);
     setPendingId(null);
     try {
-      await axios.patch(
-        `/api/sessions/${sessionId}/restaurant`,
+      await API.patch(
+        `/sessions/${sessionId}/restaurant`,
         { restaurantId: pendingId, orderUrl: trimmed || null },
         { headers: { 'x-organizer-id': me.memberId } },
       );

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api/api';
 import socket from '../socket/socket.js';
 import useSocketReconnect from '../hooks/useSocketReconnect';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
@@ -84,8 +84,8 @@ export default function TrackingPage() {
   const loadData = useCallback(async () => {
     try {
       const [sessionRes, ordersRes] = await Promise.all([
-        axios.get(`/api/sessions/${sessionId}`),
-        axios.get(`/api/sessions/${sessionId}/orders`),
+        API.get(`/sessions/${sessionId}`),
+        API.get(`/sessions/${sessionId}/orders`),
       ]);
       setSessionData(sessionRes.data.data);
       setOrders(ordersRes.data.data || []);

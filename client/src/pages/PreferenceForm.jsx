@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api/api';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 const INJECTED_CSS = `
@@ -93,7 +93,7 @@ export default function PreferenceForm() {
     setNlLoading(true);
     setNlError('');
     try {
-      const res = await axios.post(`/api/sessions/${sessionId}/extract-preferences`, { text: nlText.trim() });
+      const res = await API.post(`/sessions/${sessionId}/extract-preferences`, { text: nlText.trim() });
       const { cuisine: c, diet: d, budget: b } = res.data.data;
       if (c?.length) setCuisine(c);
       if (d?.length) setDiet(d);
@@ -128,7 +128,7 @@ export default function PreferenceForm() {
     setSubmitting(true);
     setError('');
     try {
-      await axios.post(`/api/sessions/${sessionId}/preferences`, {
+      await API.post(`/sessions/${sessionId}/preferences`, {
         memberId:   me.memberId,
         memberName: me.memberName,
         cuisine:    cuisine.length > 0 ? cuisine : ['Any'],

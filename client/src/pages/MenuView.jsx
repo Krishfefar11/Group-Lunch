@@ -1,10 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API, { getMenuSuggestions } from '../api/api';
 import socket from '../socket/socket.js';
 import useSocketReconnect from '../hooks/useSocketReconnect';
 import { getPhoto, photoUrl, cuisineQuery } from '../utils/unsplash';
-import { getMenuSuggestions } from '../api/api';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 // ── Tag colour map ──────────────────────────────────────────────────────────
@@ -96,7 +95,7 @@ export default function MenuView() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`/api/sessions/${sessionId}/menu`);
+      const res = await API.get(`/sessions/${sessionId}/menu`);
       setRestaurant(res.data.data.restaurant);
       setMenu(res.data.data.menu);
     } catch (err) {
@@ -226,7 +225,7 @@ export default function MenuView() {
     if (cartItems.length === 0) { alert('Add at least one item.'); return; }
     setSubmitting(true);
     try {
-      await axios.post(`/api/sessions/${sessionId}/orders`, {
+      await API.post(`/sessions/${sessionId}/orders`, {
         memberId: me.memberId, memberName: me.memberName,
         items: cartItems.map((i) => ({ itemCode: i.itemCode, name: i.name, price: i.price, qty: i.qty, veg: i.veg, notes: i.notes || null })),
       });

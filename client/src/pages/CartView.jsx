@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api/api';
 import socket from '../socket/socket.js';
 import useSocketReconnect from '../hooks/useSocketReconnect';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
@@ -45,8 +45,8 @@ export default function CartView() {
   const fetchCart = useCallback(async () => {
     try {
       const [ordersRes, sessionRes] = await Promise.all([
-        axios.get(`/api/sessions/${sessionId}/orders`),
-        axios.get(`/api/sessions/${sessionId}`),
+        API.get(`/sessions/${sessionId}/orders`),
+        API.get(`/sessions/${sessionId}`),
       ]);
       setOrders(ordersRes.data.data || []);
       setSession(sessionRes.data.data);

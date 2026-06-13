@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import API from '../api/api';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
@@ -34,9 +34,9 @@ export default function FinalReview() {
     setLoading(true);
     try {
       const [ordersRes, bestRes, sessionRes] = await Promise.all([
-        axios.get(`/api/sessions/${sessionId}/orders`),
-        axios.get(`/api/sessions/${sessionId}/coupons/best`),
-        axios.get(`/api/sessions/${sessionId}`),
+        API.get(`/sessions/${sessionId}/orders`),
+        API.get(`/sessions/${sessionId}/coupons/best`),
+        API.get(`/sessions/${sessionId}`),
       ]);
       setOrders(ordersRes.data.data || []);
       setOriginalTotal(bestRes.data.total || 0);
@@ -55,7 +55,7 @@ export default function FinalReview() {
     if (!code || applying) return;
     setApplying(true); setCouponError('');
     try {
-      const res = await axios.post(`/api/sessions/${sessionId}/coupon`, { code });
+      const res = await API.post(`/sessions/${sessionId}/coupon`, { code });
       setApplied(res.data.data); setManualCode('');
     } catch (err) { setCouponError(err.response?.data?.message || 'Could not apply coupon'); }
     finally { setApplying(false); }
@@ -63,7 +63,7 @@ export default function FinalReview() {
 
   const removeCoupon = async () => {
     setApplying(true); setCouponError('');
-    try { await axios.post(`/api/sessions/${sessionId}/coupon`, { code: '' }); setApplied(null); }
+    try { await API.post(`/sessions/${sessionId}/coupon`, { code: '' }); setApplied(null); }
     catch { /* ignore */ } finally { setApplying(false); }
   };
 
@@ -71,8 +71,8 @@ export default function FinalReview() {
   const handleFinalise = async () => {
     setPlacingOrder(true); setPlaceError('');
     try {
-      await axios.post(
-        `/api/sessions/${sessionId}/place-order`,
+      await API.post(
+        `/sessions/${sessionId}/place-order`,
         { deliveryAddress: deliveryAddress.trim() || 'Office' },
         { headers: { 'x-organizer-id': me?.memberId } },
       );
