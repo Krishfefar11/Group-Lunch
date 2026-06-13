@@ -231,16 +231,17 @@ export default function JoinSession() {
     }
   };
 
-  // ── Socket: join session room + live organizer handoff ───────────────────
+  // ── Socket: real-time updates (eliminates 4s polling lag for key events) ──
   useEffect(() => {
     if (!sessionId) return;
     socket.connect();
     socket.emit('join_session', sessionId);
+
+    // Organizer handoff — update session + own identity reactively
     const handleOrganizerChanged = ({ newOrganizerId, newOrganizerName }) => {
       setSession((prev) =>
         prev ? { ...prev, organizerId: newOrganizerId, organizerName: newOrganizerName } : prev
       );
-      // Update local identity reactively if this user just became organizer
       setMe((prevMe) => {
         if (prevMe?.memberId === newOrganizerId) {
           const updated = { ...prevMe, isOrganizer: true };
@@ -250,9 +251,39 @@ export default function JoinSession() {
         return prevMe;
       });
     };
-    socket.on('organizer_changed', handleOrganizerChanged);
-    return () => { socket.off('organizer_changed', handleOrganizerChanged); };
-  }, [sessionId]);
+
+    // These events just need a refetch to update UI
+    const handleRefetch = () => fetchSession();
+
+    // Restaurant selected → jump to menu immediately
+    const handleRestaurantSelected = () => {
+      fetchSession();
+      // After refetch, user may need to navigate. The status check in the
+      // rendered output (isOrdering) will surface the "Pick My Items" button.
+    };
+
+    // Order placed → send everyone to tracking instantly
+    const handleOrderPlaced = () => navigate(`/session/${sessionId}/tracking`);
+
+    // Delivery status update → redirect to tracking if not already there
+    const handleStatusUpdated = () => navigate(`/session/${sessionId}/tracking`);
+
+    socket.on('organizer_changed',    handleOrganizerChanged);
+    socket.on('member_joined',        handleRefetch);
+    socket.on('preference_submitted', handleRefetch);
+    socket.on('restaurant_selected',  handleRestaurantSelected);
+    socket.on('order_placed',         handleOrderPlaced);
+    socket.on('status_updated',       handleStatusUpdated);
+
+    return () => {
+      socket.off('organizer_changed',    handleOrganizerChanged);
+      socket.off('member_joined',        handleRefetch);
+      socket.off('preference_submitted', handleRefetch);
+      socket.off('restaurant_selected',  handleRestaurantSelected);
+      socket.off('order_placed',         handleOrderPlaced);
+      socket.off('status_updated',       handleStatusUpdated);
+    };
+  }, [sessionId, fetchSession, navigate]);
 
   // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
@@ -430,9 +461,43 @@ export default function JoinSession() {
           </div>
         </div>
 
-        {/* ── Join form (not yet joined) ────────────────────────────────── */}
-        {!hasJoined && (
-          <div style={s.card} className="animate-fade-up" style2={{ animationDelay: '0.1s' }}>
+        {/* ── Restaurant preview (when restaurant is picked or ordering) ── */}
+        {session.restaurant && ['restaurant_picked', 'ordering'].includes(session.status) && (
+          <div style={s.restPreviewCard} className="animate-fade-up">
+            {session.restaurant.imageUrl && (
+              <img src={session.restaurant.imageUrl} alt={session.restaurant.name} style={s.restPreviewImg} />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={s.restPreviewLabel}>🎯 Restaurant picked</p>
+              <p style={s.restPreviewName}>{session.restaurant.name}</p>
+              <p style={s.restPreviewMeta}>
+                {[(session.restaurant.cuisines || [])[0], session.restaurant.area].filter(Boolean).join(' · ')}
+                {session.restaurant.deliveryTimeMin ? ` · ~${session.restaurant.deliveryTimeMin} min` : ''}
+              </p>
+            </div>
+            {session.restaurant.rating && (
+              <div style={s.restPreviewRating}>
+                <span style={{ color: colors.gold.base }}>★</span>
+                {session.restaurant.rating}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Closed session notice (order already placed, not a member) ── */}
+        {!hasJoined && isActive && (
+          <div style={{ ...s.card, textAlign: 'center' }} className="animate-fade-up">
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🔒</div>
+            <h3 style={{ ...s.sectionTitle, color: colors.text.primary }}>Order already placed</h3>
+            <p style={{ fontSize: font.size.sm, color: colors.text.muted, margin: '8px 0 0', lineHeight: 1.6 }}>
+              This group has already ordered. You can't join now — ask the organizer to start a new session next time!
+            </p>
+          </div>
+        )}
+
+        {/* ── Join form (not yet joined + session still open) ───────────── */}
+        {!hasJoined && !isActive && (
+          <div style={s.card} className="animate-fade-up">
             <h3 style={s.sectionTitle}>Join this session</h3>
             <form onSubmit={handleJoin}>
               <input
@@ -673,6 +738,14 @@ const s = {
     flexDirection: 'column',
     gap: 12,
   },
+  // Restaurant preview card
+  restPreviewCard: { display: 'flex', alignItems: 'center', gap: 12, background: `linear-gradient(135deg, ${colors.bg.surface} 0%, rgba(240,165,0,0.04) 100%)`, border: `1px solid rgba(240,165,0,0.18)`, borderRadius: radius.xl, padding: '12px 16px', boxShadow: shadow.sm },
+  restPreviewImg:  { width: 56, height: 56, objectFit: 'cover', borderRadius: radius.md, flexShrink: 0, border: `1px solid rgba(240,165,0,0.15)` },
+  restPreviewLabel:{ fontSize: font.size.xs, color: colors.gold.base, fontWeight: font.weight.bold, letterSpacing: '0.05em', textTransform: 'uppercase', margin: '0 0 3px' },
+  restPreviewName: { fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text.primary, margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  restPreviewMeta: { fontSize: font.size.xs, color: colors.text.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  restPreviewRating:{ display: 'flex', alignItems: 'center', gap: 3, background: colors.gold.dim, border: `1px solid rgba(240,165,0,0.2)`, borderRadius: radius.full, padding: '4px 10px', fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text.primary, flexShrink: 0 },
+
   // Session card
   sessionCard: {
     background:   colors.bg.surface,

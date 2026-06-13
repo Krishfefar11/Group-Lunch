@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import ChatBot from './components/ChatBot';
 import { colors, font } from './design-system/tokens';
 
@@ -404,7 +404,7 @@ export default function App() {
             <span style={{ fontSize: 64, animation: 'float 3s ease infinite' }}>🍽️</span>
             <p style={{ fontSize: 64, fontWeight: 900, color: colors.text.primary, letterSpacing: '-0.04em' }}>404</p>
             <p style={{ color: colors.text.secondary, fontSize: 15 }}>This page doesn't exist</p>
-            <a href="/" style={{
+            <Link to="/" style={{
               marginTop: 8,
               padding: '11px 24px',
               borderRadius: '12px',
@@ -415,7 +415,7 @@ export default function App() {
               fontWeight: 600,
               textDecoration: 'none',
               transition: 'all 0.2s ease',
-            }}>← Back to Home</a>
+            }}>← Back to Home</Link>
           </div>
         } />
       </Routes>

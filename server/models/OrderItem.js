@@ -41,6 +41,12 @@ const OrderItem = sequelize.define('OrderItem', {
     allowNull:    true,
     defaultValue: null,
   },
+  imageUrl: {
+    type:         DataTypes.TEXT,
+    allowNull:    true,
+    defaultValue: null,
+    field:        'image_url',
+  },
 }, {
   tableName: 'order_items',
   timestamps: false,

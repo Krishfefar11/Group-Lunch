@@ -40,6 +40,7 @@ router.get('/:sessionId/menu', async (req, res) => {
         jainFriendly: item.jainFriendly,
         tags:         item.tags || [],
         category:     item.category,
+        imageUrl:     item.imageUrl || null,
       });
     });
 
@@ -56,7 +57,9 @@ router.get('/:sessionId/menu', async (req, res) => {
           vegFriendly:     restaurant.vegFriendly,
           jainFriendly:    restaurant.jainFriendly,
           imageEmoji:      restaurant.imageEmoji,
+          imageUrl:        restaurant.imageUrl || null,
           area:            restaurant.area,
+          cuisine:         (restaurant.cuisines || [])[0] || null,
         },
         menu,
         sessionStatus: session.status,
@@ -89,6 +92,11 @@ router.post('/:sessionId/orders', async (req, res) => {
     if (!session.selectedRestaurantId) {
       return res.status(400).json({ success: false, message: 'No restaurant selected yet' });
     }
+    // Block order changes once the group order has been finalised
+    const LOCKED_STATUSES = ['order_placed', 'preparing', 'out_for_delivery', 'delivered'];
+    if (LOCKED_STATUSES.includes(session.status)) {
+      return res.status(400).json({ success: false, message: 'The group order has already been placed — no more changes allowed.' });
+    }
 
     // Calculate subtotal
     const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
@@ -119,7 +127,8 @@ router.post('/:sessionId/orders', async (req, res) => {
       price:    i.price,
       qty:      i.qty,
       veg:      i.veg ?? true,
-      notes:    i.notes ? String(i.notes).trim().slice(0, 120) : null,
+      notes:    i.notes    ? String(i.notes).trim().slice(0, 120) : null,
+      imageUrl: i.imageUrl || null,
     }));
     await OrderItem.bulkCreate(orderItems);
 
@@ -172,7 +181,8 @@ router.post('/:sessionId/place-order', requireOrganizer, async (req, res) => {
     if (!session) {
       return res.status(404).json({ success: false, message: 'Session not found' });
     }
-    if (session.status === 'order_placed' || session.status === 'delivered') {
+    const FINAL_STATUSES = ['order_placed', 'preparing', 'out_for_delivery', 'delivered'];
+    if (FINAL_STATUSES.includes(session.status)) {
       return res.status(400).json({ success: false, message: 'Order has already been placed.' });
     }
     if (!session.selectedRestaurantId) {

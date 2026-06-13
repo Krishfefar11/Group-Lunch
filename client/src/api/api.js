@@ -67,9 +67,17 @@ export const placeOrder = (sessionId, organizerId, data) =>
     withOrganizer(organizerId),
   );
 
+// ── Delivery status (organizer only) ─────────────────────────────────────────
+export const updateDeliveryStatus = (sessionId, status, organizerId) =>
+  API.patch(
+    `/sessions/${sessionId}/status`,
+    { status },
+    withOrganizer(organizerId),
+  );
+
 // ── Coupons ──────────────────────────────────────────────────────────────────
 export const applyCoupon = (sessionId, couponCode) =>
-  API.post(`/sessions/${sessionId}/apply-coupon`, { couponCode });
+  API.post(`/sessions/${sessionId}/coupon`, { code: couponCode });
 
 // ── AI Chat ──────────────────────────────────────────────────────────────────
 export const sendChatMessage = (sessionId, payload) =>

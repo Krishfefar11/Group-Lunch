@@ -101,14 +101,21 @@ export default function MenuView() {
     setError('');
     try {
       const res = await API.get(`/sessions/${sessionId}/menu`);
-      setRestaurant(res.data.data.restaurant);
-      setMenu(res.data.data.menu);
+      const { restaurant: r, menu: m, sessionStatus } = res.data.data;
+      // Redirect immediately if the order is already confirmed/in-delivery
+      const DONE_STATUSES = ['order_placed', 'preparing', 'out_for_delivery', 'delivered'];
+      if (DONE_STATUSES.includes(sessionStatus)) {
+        navigate(`/session/${sessionId}/tracking`);
+        return;
+      }
+      setRestaurant(r);
+      setMenu(m);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load menu.');
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, navigate]);
 
   useEffect(() => { fetchMenu(); }, [fetchMenu]);
 
@@ -186,14 +193,14 @@ export default function MenuView() {
   useEffect(() => {
     socket.connect();
     socket.emit('join_session', sessionId);
-    socket.on('menu_ready', () => {
-      if (Object.keys(menu).length === 0) fetchMenu();
-    });
-    socket.on('order_placed', () => navigate(`/session/${sessionId}/tracking`));
+    socket.on('menu_ready',     () => { if (Object.keys(menu).length === 0) fetchMenu(); });
+    socket.on('order_placed',   () => navigate(`/session/${sessionId}/tracking`));
+    socket.on('status_updated', () => navigate(`/session/${sessionId}/tracking`));
     socket.on('presence_update', ({ online }) => setOnlineMembers(online || []));
     return () => {
       socket.off('menu_ready');
       socket.off('order_placed');
+      socket.off('status_updated');
       socket.off('presence_update');
       socket.disconnect();
     };
@@ -284,7 +291,14 @@ export default function MenuView() {
   const cartItems = Object.entries(cart)
     .map(([code, qty]) => {
       const item = allItems.find((i) => i.itemCode === code);
-      return item ? { ...item, qty, notes: itemNotes[code] || null } : null;
+      if (!item) return null;
+      // Merge Unsplash-fetched photo so imageUrl is always populated when available
+      return {
+        ...item,
+        qty,
+        notes:    itemNotes[code] || null,
+        imageUrl: item.imageUrl || itemPhotos[code] || null,
+      };
     })
     .filter(Boolean);
   const subtotal  = cartItems.reduce((s, i) => s + i.price * i.qty, 0);
@@ -297,7 +311,7 @@ export default function MenuView() {
     try {
       await API.post(`/sessions/${sessionId}/orders`, {
         memberId: me.memberId, memberName: me.memberName,
-        items: cartItems.map((i) => ({ itemCode: i.itemCode, name: i.name, price: i.price, qty: i.qty, veg: i.veg, notes: i.notes || null })),
+        items: cartItems.map((i) => ({ itemCode: i.itemCode, name: i.name, price: i.price, qty: i.qty, veg: i.veg, notes: i.notes || null, imageUrl: i.imageUrl || null })),
       });
       setSubmitted(true);
     } catch (err) {
@@ -362,27 +376,75 @@ export default function MenuView() {
   );
 
   // ── Submitted ───────────────────────────────────────────────────────────────
-  if (submitted) return (
-    <div style={s.center}>
-      <style>{INJECTED_CSS}</style>
-      <div style={s.submittedCard} className="animate-scale-in">
-        <div style={s.submittedIcon}>
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
-            <path d="M20 6L9 17l-5-5" stroke={colors.green.text} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+  if (submitted) {
+    // Build photo strip from ordered items (up to 5 unique items with images)
+    const submittedPhotos = cartItems
+      .filter((i) => i.imageUrl)
+      .slice(0, 5);
+
+    return (
+      <div style={s.center}>
+        <style>{INJECTED_CSS}</style>
+        <div style={s.submittedCard} className="animate-scale-in">
+          <div style={s.submittedIcon}>
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+              <path d="M20 6L9 17l-5-5" stroke={colors.green.text} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <h2 style={s.submittedTitle}>Order submitted!</h2>
+          <p style={s.submittedMeta}>{itemCount} item{itemCount !== 1 ? 's' : ''} · <span style={{ color: colors.text.gold, fontWeight: font.weight.bold }}>₹{subtotal}</span></p>
+
+          {/* Photo strip of ordered items */}
+          {submittedPhotos.length > 0 && (
+            <div style={s.submittedPhotoStrip}>
+              {submittedPhotos.map((item, i) => (
+                <div key={i} style={{ position: 'relative', flexShrink: 0 }}>
+                  <img
+                    src={item.imageUrl}
+                    alt={item.name}
+                    style={{
+                      width: 52, height: 52, objectFit: 'cover', borderRadius: 10,
+                      border: `2px solid ${colors.bg.surface}`,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                    }}
+                  />
+                  {item.qty > 1 && (
+                    <span style={{
+                      position: 'absolute', top: -4, right: -4,
+                      background: colors.gold.base, color: '#fff',
+                      fontSize: 9, fontWeight: 800, width: 16, height: 16,
+                      borderRadius: '50%', display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', lineHeight: 1,
+                    }}>
+                      {item.qty}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {cartItems.length > 5 && (
+                <div style={{
+                  width: 52, height: 52, borderRadius: 10, background: colors.bg.raised,
+                  border: `2px solid ${colors.border.subtle}`, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontSize: font.size.xs, color: colors.text.muted, fontWeight: font.weight.semibold,
+                }}>
+                  +{cartItems.length - 5}
+                </div>
+              )}
+            </div>
+          )}
+
+          <p style={s.submittedHint}>Waiting for everyone else to order...</p>
+          <button style={s.goldBtn} onClick={() => navigate(`/session/${sessionId}/cart`)}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(240,165,0,0.4)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 20px rgba(240,165,0,0.25)'; }}>
+            View Group Cart →
+          </button>
+          <button style={s.ghostBtn} onClick={() => setSubmitted(false)}>Edit my order</button>
         </div>
-        <h2 style={s.submittedTitle}>Order submitted!</h2>
-        <p style={s.submittedMeta}>{itemCount} item{itemCount !== 1 ? 's' : ''} · <span style={{ color: colors.text.gold, fontWeight: font.weight.bold }}>₹{subtotal}</span></p>
-        <p style={s.submittedHint}>Waiting for everyone else to order...</p>
-        <button style={s.goldBtn} onClick={() => navigate(`/session/${sessionId}/cart`)}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(240,165,0,0.4)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 20px rgba(240,165,0,0.25)'; }}>
-          View Group Cart →
-        </button>
-        <button style={s.ghostBtn} onClick={() => setSubmitted(false)}>Edit my order</button>
       </div>
-    </div>
-  );
+    );
+  }
 
   const heroSrc = restaurant.imageUrl
     ? restaurant.imageUrl.replace('/upload/', '/upload/w_800,h_320,c_fill,q_auto,f_auto/')
@@ -1013,7 +1075,8 @@ const s = {
   submittedIcon:  { width: 72, height: 72, borderRadius: radius.full, background: colors.green.dim, border: `1px solid rgba(16,185,129,0.3)`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' },
   submittedTitle: { fontSize: font.size['2xl'], fontWeight: font.weight.bold, color: colors.text.primary, letterSpacing: '-0.025em', marginBottom: 8 },
   submittedMeta:  { fontSize: font.size.base, color: colors.text.secondary, marginBottom: 6 },
-  submittedHint:  { fontSize: font.size.sm, color: colors.text.muted, marginBottom: 28, lineHeight: 1.5 },
+  submittedHint:       { fontSize: font.size.sm, color: colors.text.muted, marginBottom: 28, lineHeight: 1.5 },
+  submittedPhotoStrip: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, margin: '16px 0 20px' },
   goldBtn:        { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', background: `linear-gradient(135deg, ${colors.gold.base}, #f4520f)`, color: '#fff', border: 'none', borderRadius: radius.lg, fontFamily: font.family, fontSize: font.size.md, fontWeight: font.weight.bold, cursor: 'pointer', padding: '14px', marginBottom: 10, transition: transition.base, boxShadow: '0 4px 20px rgba(240,165,0,0.25)' },
   ghostBtn:       { background: 'transparent', border: 'none', color: colors.text.muted, fontFamily: font.family, fontSize: font.size.sm, cursor: 'pointer', padding: '8px', width: '100%', transition: transition.fast },
 

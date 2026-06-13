@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/api';
+import socket from '../socket/socket.js';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 
 const INJECTED_CSS = `
   .pf-chip { transition: all 0.15s ease; }
-  .pf-chip:hover:not(.pf-chip-active) { border-color: #f4520f !important; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .pf-chip img { transition: opacity 0.2s ease, transform 0.3s ease; }
+  .pf-chip:hover:not(.pf-chip-active) { border-color: #f4520f !important; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(244,82,15,0.15); }
+  .pf-chip:hover:not(.pf-chip-active) img { opacity: 0.18 !important; transform: scale(1.05); }
+  .pf-chip-active img { opacity: 0.25 !important; transform: scale(1.08); }
   .pf-budget-card { transition: all 0.15s ease; }
   .pf-budget-card:hover:not(.pf-budget-active) { border-color: #e5e5e5 !important; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
   .pf-next-btn { transition: transform 0.15s ease, box-shadow 0.15s ease; }
@@ -24,17 +28,20 @@ const INJECTED_CSS = `
   }
 `;
 
+// Unsplash helper — tiny chips don't need large images
+const CU = (id) => `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=120&h=90&q=65`;
+
 const CUISINES = [
-  { id: 'NorthIndian', label: 'North Indian', emoji: '🫕' },
-  { id: 'SouthIndian', label: 'South Indian', emoji: '🥞' },
-  { id: 'Biryani',     label: 'Biryani',      emoji: '🍛' },
-  { id: 'Chinese',     label: 'Chinese',       emoji: '🥡' },
-  { id: 'Pizza',       label: 'Pizza',         emoji: '🍕' },
-  { id: 'Burgers',     label: 'Burgers',       emoji: '🍔' },
-  { id: 'Wraps',       label: 'Wraps',         emoji: '🌯' },
-  { id: 'Continental', label: 'Continental',   emoji: '🍝' },
-  { id: 'Breakfast',   label: 'Breakfast',     emoji: '🍳' },
-  { id: 'Any',         label: 'Anything',      emoji: '🍽️' },
+  { id: 'NorthIndian', label: 'North Indian', emoji: '🫕', photo: CU('1585937421612-70a008356fbe') },
+  { id: 'SouthIndian', label: 'South Indian', emoji: '🥞', photo: CU('1630383249896-469fd4b80c48') },
+  { id: 'Biryani',     label: 'Biryani',      emoji: '🍛', photo: CU('1563379091339-03b21ab4a4f8') },
+  { id: 'Chinese',     label: 'Chinese',       emoji: '🥡', photo: CU('1563245372-f21724e3856d') },
+  { id: 'Pizza',       label: 'Pizza',         emoji: '🍕', photo: CU('1565299624946-b28f40a0ae38') },
+  { id: 'Burgers',     label: 'Burgers',       emoji: '🍔', photo: CU('1568901346375-23c9450c58cd') },
+  { id: 'Wraps',       label: 'Wraps',         emoji: '🌯', photo: CU('1626700051175-6818013e1d4f') },
+  { id: 'Continental', label: 'Continental',   emoji: '🍝', photo: CU('1551183053-bf91798d765e') },
+  { id: 'Breakfast',   label: 'Breakfast',     emoji: '🍳', photo: CU('1533920379810-6bedac961555') },
+  { id: 'Any',         label: 'Anything',      emoji: '🍽️', photo: CU('1504674900247-0877df9cc836') },
 ];
 
 const DIETS = [
@@ -86,6 +93,26 @@ export default function PreferenceForm() {
     window.addEventListener('chatbot-fill-preferences', handler);
     return () => window.removeEventListener('chatbot-fill-preferences', handler);
   }, []);
+
+  // Socket: redirect when the session advances past the preference-collection stage
+  useEffect(() => {
+    socket.connect();
+    socket.emit('join_session', sessionId);
+
+    const goJoin     = () => navigate(`/session/${sessionId}`);
+    const goTracking = () => navigate(`/session/${sessionId}/tracking`);
+
+    socket.on('restaurant_selected', goJoin);      // organizer picked → go back to join/lobby
+    socket.on('order_placed',        goTracking);  // order locked → go to tracking
+    socket.on('status_updated',      goTracking);  // delivery status → go to tracking
+
+    return () => {
+      socket.off('restaurant_selected', goJoin);
+      socket.off('order_placed',        goTracking);
+      socket.off('status_updated',      goTracking);
+      socket.disconnect();
+    };
+  }, [sessionId, navigate]);
 
   // A4 — Extract preferences from free-form text via agent API
   const handleNlExtract = async () => {
@@ -273,13 +300,27 @@ export default function PreferenceForm() {
                     <button
                       key={c.id}
                       className={`pf-chip${active ? ' pf-chip-active' : ''}`}
-                      style={{ ...s.chip, ...(active ? s.chipActive : {}) }}
+                      style={{ ...s.chip, ...(active ? s.chipActive : {}), position: 'relative', overflow: 'hidden' }}
                       onClick={() => toggleCuisine(c.id)}
                     >
-                      <span className="pf-chip-emoji" style={s.chipEmoji}>{c.emoji}</span>
-                      <span style={s.chipLabel}>{c.label}</span>
+                      {/* Subtle food photo background */}
+                      {c.photo && (
+                        <img
+                          src={c.photo}
+                          alt=""
+                          aria-hidden="true"
+                          style={{
+                            position: 'absolute', inset: 0, width: '100%', height: '100%',
+                            objectFit: 'cover', opacity: active ? 0.22 : 0.1,
+                            transition: 'opacity 0.2s ease',
+                            borderRadius: 'inherit',
+                          }}
+                        />
+                      )}
+                      <span className="pf-chip-emoji" style={{ ...s.chipEmoji, position: 'relative', zIndex: 1 }}>{c.emoji}</span>
+                      <span style={{ ...s.chipLabel, position: 'relative', zIndex: 1 }}>{c.label}</span>
                       {active && (
-                        <div style={s.chipCheck}>
+                        <div style={{ ...s.chipCheck, zIndex: 1 }}>
                           <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </div>
                       )}

@@ -471,7 +471,7 @@ export default function Home() {
             { label: 'Avg group size', end: 6, suffix: ' people' },
             { label: 'Avg savings', end: 18, suffix: '%' },
           ].map((stat, i) => (
-            <div key={stat.label} style={s.statItem} className="animate-fade-up" style2={{ animationDelay: `${i * 0.1}s` }}>
+            <div key={stat.label} style={{ ...s.statItem, animationDelay: `${i * 0.1}s` }} className="animate-fade-up">
               <div style={s.statNum}>
                 <Counter end={stat.end} suffix={stat.suffix} duration={1600} />
               </div>

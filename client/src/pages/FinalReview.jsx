@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/api';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
+import { DEFAULT_DELIVERY_FEE, PLATFORM_FEE, GST_RATE } from '../utils/billing';
 
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
 
@@ -17,6 +18,7 @@ export default function FinalReview() {
   const [allEligible,   setAllEligible]   = useState([]);
   const [originalTotal, setOriginalTotal] = useState(0);
   const [loading,       setLoading]       = useState(true);
+  const [loadError,     setLoadError]     = useState('');
   const [applying,      setApplying]      = useState(false);
   const [couponError,   setCouponError]   = useState('');
   const [me,            setMe]            = useState(null);
@@ -24,6 +26,7 @@ export default function FinalReview() {
   const [placeError,    setPlaceError]    = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [addrFocused,   setAddrFocused]   = useState(false);
+  const [expandedOrders, setExpandedOrders] = useState({});
 
   useEffect(() => {
     const stored = localStorage.getItem(`member_${sessionId}`);
@@ -45,8 +48,9 @@ export default function FinalReview() {
         setBestCoupon(bestRes.data.best);
         setAllEligible(bestRes.data.allEligible || []);
       }
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setLoadError(err.response?.data?.message || 'Could not load order details. Try refreshing.');
+    } finally { setLoading(false); }
   }, [sessionId]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -84,14 +88,27 @@ export default function FinalReview() {
     }
   };
 
-  const savings    = applied?.savings    ?? 0;
-  const finalTotal = applied?.finalTotal ?? originalTotal;
+  const savings     = applied?.savings    ?? 0;
+  const discounted  = (applied?.finalTotal ?? originalTotal);   // food − coupon
+  const deliveryFee = DEFAULT_DELIVERY_FEE;
+  const gst         = Math.round(discounted * GST_RATE);
+  const finalTotal  = discounted + deliveryFee + gst + PLATFORM_FEE;
 
   if (loading) return (
     <div style={s.center}>
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 40, marginBottom: 16, animation: 'float 2.5s ease infinite' }}>🎟️</div>
         <p style={{ color: colors.text.secondary }}>Loading order details...</p>
+      </div>
+    </div>
+  );
+
+  if (loadError) return (
+    <div style={s.center}>
+      <div style={{ textAlign: 'center', maxWidth: 300 }}>
+        <div style={{ fontSize: 40, marginBottom: 16 }}>⚠️</div>
+        <p style={{ color: colors.red.text, marginBottom: 20, lineHeight: 1.5 }}>{loadError}</p>
+        <button style={s.outlineBtn} onClick={loadData}>Try Again</button>
       </div>
     </div>
   );
@@ -133,11 +150,15 @@ export default function FinalReview() {
         {/* ── Restaurant info ────────────────────────────────────────────── */}
         {restaurant && (
           <div style={s.restCard} className="animate-fade-up">
-            <span style={{ fontSize: 28 }}>{restaurant.imageEmoji || '🍽️'}</span>
+            {restaurant.imageUrl ? (
+              <img src={restaurant.imageUrl} alt={restaurant.name} style={s.restImg} />
+            ) : (
+              <span style={{ fontSize: 28, flexShrink: 0 }}>{restaurant.imageEmoji || '🍽️'}</span>
+            )}
             <div style={{ flex: 1 }}>
               <p style={s.restName}>{restaurant.name}</p>
               <p style={s.restMeta}>
-                {[restaurant.area, session?.deliveryCity].filter(Boolean).join(' · ')}
+                {[(restaurant.cuisines || [])[0], restaurant.area, session?.deliveryCity].filter(Boolean).join(' · ')}
                 {restaurant.deliveryTimeMin ? ` · ~${restaurant.deliveryTimeMin} min` : ''}
               </p>
             </div>
@@ -154,13 +175,48 @@ export default function FinalReview() {
           <div style={s.orderList}>
             {orders.map((order, idx) => {
               const avatarColor = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+              const isExpanded  = expandedOrders[order.id];
+              const orderQty    = (order.items || []).reduce((s, i) => s + i.qty, 0);
               return (
-                <div key={order.id} style={s.orderRow}>
-                  <div style={{ ...s.miniAvatar, background: `${avatarColor}22`, color: avatarColor }}>
-                    {order.memberName.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={s.orderName}>{order.memberName}</span>
-                  <span style={s.orderAmt}>₹{Math.round(order.subtotal)}</span>
+                <div key={order.id}>
+                  <button
+                    style={s.orderRow}
+                    onClick={() => setExpandedOrders((p) => ({ ...p, [order.id]: !p[order.id] }))}
+                  >
+                    <div style={{ ...s.miniAvatar, background: `${avatarColor}22`, color: avatarColor }}>
+                      {order.memberName.charAt(0).toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'left' }}>
+                      <span style={s.orderName}>{order.memberName}</span>
+                      <span style={{ fontSize: font.size.xs, color: colors.text.muted, marginLeft: 8 }}>{orderQty} item{orderQty !== 1 ? 's' : ''}</span>
+                    </div>
+                    <span style={s.orderAmt}>₹{Math.round(order.subtotal)}</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease', marginLeft: 6, flexShrink: 0 }}>
+                      <path d="M5 9l7 7 7-7" stroke={colors.text.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                  {isExpanded && (
+                    <div style={s.orderItemsExpanded}>
+                      {(order.items || []).map((item, i) => (
+                        <div key={i} style={s.expandedItemRow}>
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} style={s.expandedThumb} />
+                          ) : (
+                            <span style={{ ...s.vegDotSm, background: item.veg ? colors.veg : colors.nonVeg }} />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                              {item.imageUrl && <span style={{ ...s.vegDotSm, background: item.veg ? colors.veg : colors.nonVeg }} />}
+                              <span style={s.expandedItemName}>{item.name}</span>
+                            </div>
+                            {item.notes && <div style={s.expandedNotes}>💬 {item.notes}</div>}
+                          </div>
+                          <span style={s.expandedQty}>×{item.qty}</span>
+                          <span style={s.expandedPrice}>₹{item.price * item.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -251,7 +307,7 @@ export default function FinalReview() {
         {/* ── Price card ────────────────────────────────────────────────── */}
         <div style={s.priceCard} className="animate-fade-up">
           <div style={s.priceRow}>
-            <span style={s.priceLabel}>Subtotal</span>
+            <span style={s.priceLabel}>Food subtotal</span>
             <span style={s.priceVal}>₹{originalTotal}</span>
           </div>
           {savings > 0 && (
@@ -260,6 +316,18 @@ export default function FinalReview() {
               <span style={{ ...s.priceVal, color: colors.green.text }}>−₹{savings}</span>
             </div>
           )}
+          <div style={s.priceRow}>
+            <span style={s.priceLabel}>Delivery fee</span>
+            <span style={s.priceVal}>₹{deliveryFee}</span>
+          </div>
+          <div style={s.priceRow}>
+            <span style={s.priceLabel}>GST (5%)</span>
+            <span style={s.priceVal}>₹{gst}</span>
+          </div>
+          <div style={s.priceRow}>
+            <span style={s.priceLabel}>Platform fee</span>
+            <span style={s.priceVal}>₹{PLATFORM_FEE}</span>
+          </div>
           <div style={s.priceDivider} />
           <div style={s.priceRow}>
             <span style={s.totalLabel}>Total</span>
@@ -347,6 +415,7 @@ const s = {
 
   // Restaurant card
   restCard: { display: 'flex', alignItems: 'center', gap: 14, background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius.xl, padding: '14px 18px', marginBottom: 16, boxShadow: shadow.sm },
+  restImg:  { width: 56, height: 56, objectFit: 'cover', borderRadius: radius.md, flexShrink: 0, border: `1px solid ${colors.border.subtle}` },
   restName: { fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text.primary, margin: '0 0 3px' },
   restMeta: { fontSize: font.size.xs, color: colors.text.muted, margin: 0 },
   ratingPill: { display: 'flex', alignItems: 'center', gap: 4, background: colors.gold.dim, border: `1px solid rgba(240,165,0,0.2)`, borderRadius: radius.full, padding: '4px 10px', fontSize: font.size.sm, fontWeight: font.weight.bold, color: colors.text.primary, flexShrink: 0 },
@@ -355,10 +424,20 @@ const s = {
   sectionLabel:{ fontSize: font.size.xs, fontWeight: font.weight.semibold, color: colors.text.muted, letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 10 },
 
   orderList:{ background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius.xl, overflow: 'hidden' },
-  orderRow: { display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: `1px solid ${colors.border.subtle}`, gap: 10 },
+  orderRow: { display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: `1px solid ${colors.border.subtle}`, gap: 10, width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', borderBottom: `1px solid ${colors.border.subtle}`, textDecoration: 'none' },
   miniAvatar:{ width: 30, height: 30, borderRadius: radius.full, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: font.size.sm, fontWeight: font.weight.bold, flexShrink: 0 },
-  orderName:{ flex: 1, fontSize: font.size.base, color: colors.text.secondary, fontWeight: font.weight.medium },
+  orderName:{ fontSize: font.size.base, color: colors.text.secondary, fontWeight: font.weight.medium },
   orderAmt: { fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text.primary },
+
+  // Expanded order items
+  orderItemsExpanded: { background: colors.bg.raised, borderBottom: `1px solid ${colors.border.subtle}`, padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 },
+  expandedItemRow:    { display: 'flex', alignItems: 'center', gap: 8 },
+  expandedThumb:      { width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0, border: `1px solid ${colors.border.subtle}` },
+  vegDotSm:          { width: 6, height: 6, borderRadius: '50%', flexShrink: 0 },
+  expandedItemName:  { fontSize: font.size.sm, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  expandedNotes:     { fontSize: '11px', color: colors.text.muted, fontStyle: 'italic', marginTop: 1 },
+  expandedQty:       { fontSize: font.size.sm, color: colors.text.muted, minWidth: 26, textAlign: 'right', flexShrink: 0 },
+  expandedPrice:     { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.text.primary, minWidth: 48, textAlign: 'right', flexShrink: 0 },
 
   // Coupon suggest
   couponSuggest:   { background: colors.green.dim, border: `1px solid rgba(16,185,129,0.2)`, borderRadius: radius.xl, padding: '16px', marginBottom: 12 },

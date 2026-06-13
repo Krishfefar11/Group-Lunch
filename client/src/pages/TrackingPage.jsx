@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import API from '../api/api';
+import API, { updateDeliveryStatus } from '../api/api';
 import socket from '../socket/socket.js';
 import useSocketReconnect from '../hooks/useSocketReconnect';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
+import { DEFAULT_DELIVERY_FEE, PLATFORM_FEE, GST_RATE } from '../utils/billing';
 
 const AVATAR_COLORS = ['#f0a500','#6366f1','#10b981','#ef4444','#8b5cf6','#06b6d4'];
 
@@ -40,6 +41,75 @@ function buildSwiggyLink(name) {
   return `https://www.swiggy.com/search?query=${encodeURIComponent(name || '')}`;
 }
 
+// ── Status-aware hero content ─────────────────────────────────────────────────
+const STATUS_HERO = {
+  order_placed:     { title: 'Order Placed! ✓',   icon: '✓',  iconBg: 'linear-gradient(135deg,#10b981,#059669)', cardBg: 'rgba(16,185,129,0.06)', cardBorder: 'rgba(16,185,129,0.2)',  sub: (r) => r ? `Order sent to ${r.name} — awaiting confirmation` : 'Your group order is locked in' },
+  preparing:        { title: 'Being Prepared 🍳', icon: '🍳', iconBg: 'linear-gradient(135deg,#f59e0b,#d97706)', cardBg: 'rgba(245,158,11,0.06)', cardBorder: 'rgba(245,158,11,0.2)',  sub: (r) => r ? `${r.name} is cooking your food` : 'The restaurant is preparing your order' },
+  out_for_delivery: { title: 'On the Way! 🛵',    icon: '🛵', iconBg: 'linear-gradient(135deg,#6366f1,#4f46e5)', cardBg: 'rgba(99,102,241,0.06)', cardBorder: 'rgba(99,102,241,0.2)',  sub: (r) => r ? `Food is leaving ${r.name}` : 'Your food is on the way'              },
+  delivered:        { title: 'Delivered! 🎉',      icon: '🎉', iconBg: 'linear-gradient(135deg,#10b981,#059669)', cardBg: 'rgba(16,185,129,0.08)', cardBorder: 'rgba(16,185,129,0.25)', sub: ()  => 'Enjoy your meal! 🍽️'                                                   },
+};
+
+// ── Order Status Stepper ──────────────────────────────────────────────────────
+const STEP_DEFS = [
+  { label: 'Order Placed', icon: '✓'  },
+  { label: 'Preparing',    icon: '🍳' },
+  { label: 'On the Way',   icon: '🛵' },
+  { label: 'Delivered',    icon: '🎉' },
+];
+
+function OrderStepper({ status }) {
+  // Map backend enum values → 0-indexed step position
+  const currentStep =
+    status === 'delivered'        ? 3 :
+    status === 'out_for_delivery' ? 2 :
+    status === 'preparing'        ? 1 :
+    0; // order_placed (or any earlier status) = "Group Ready"
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0 }}>
+      {STEP_DEFS.map((step, i) => {
+        const done    = i <= currentStep;
+        const current = i === currentStep;
+        return (
+          <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            {i > 0 && (
+              <div style={{
+                position: 'absolute', top: 13, left: '-50%', right: '50%', height: 2,
+                background: i <= currentStep ? '#10b981' : 'rgba(0,0,0,0.08)',
+                transition: 'background 0.4s ease',
+              }} />
+            )}
+            <div style={{
+              width: 26, height: 26, borderRadius: '50%', zIndex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: current ? 12 : 11,
+              background: current
+                ? 'linear-gradient(135deg,#10b981,#059669)'
+                : done ? 'rgba(16,185,129,0.18)' : 'rgba(0,0,0,0.05)',
+              border: done ? `1.5px solid ${done ? 'transparent' : 'rgba(0,0,0,0.1)'}` : '1.5px solid rgba(0,0,0,0.1)',
+              color: done ? (current ? '#fff' : '#059669') : colors.text.muted,
+              boxShadow: current ? '0 0 0 4px rgba(16,185,129,0.18)' : 'none',
+              transition: 'all 0.3s ease', fontWeight: 700,
+            }}>
+              {done && !current
+                ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#059669" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                : step.icon
+              }
+            </div>
+            <p style={{
+              fontSize: '10px', fontWeight: current ? 700 : 500, marginTop: 5,
+              textAlign: 'center', lineHeight: 1.2,
+              color: current ? colors.green.text : done ? colors.text.secondary : colors.text.muted,
+              transition: 'all 0.3s ease',
+            }}>
+              {step.label}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 function MemberAvatar({ name, index = 0, size = 36 }) {
   const bg = AVATAR_COLORS[index % AVATAR_COLORS.length];
@@ -73,8 +143,9 @@ export default function TrackingPage() {
   const [loading,     setLoading]     = useState(true);
   const [error,       setError]       = useState('');
   const [me,          setMe]          = useState(null);
-  const [expanded,    setExpanded]    = useState({});
-  const [copied,      setCopied]      = useState(false);
+  const [expanded,       setExpanded]       = useState({});
+  const [copied,         setCopied]         = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem(`member_${sessionId}`);
@@ -98,12 +169,19 @@ export default function TrackingPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Listen for order_placed in case a member navigates here before the event
+  // Listen for order_placed + status_updated events
   useEffect(() => {
     socket.connect();
     socket.emit('join_session', sessionId);
     socket.on('order_placed', () => loadData());
-    return () => { socket.off('order_placed'); socket.disconnect(); };
+    socket.on('status_updated', ({ status }) => {
+      setSessionData((prev) => prev ? { ...prev, status } : prev);
+    });
+    return () => {
+      socket.off('order_placed');
+      socket.off('status_updated');
+      socket.disconnect();
+    };
   }, [sessionId, loadData]);
 
   // Reconnect guard — re-join session room and re-fetch order data on reconnect
@@ -111,9 +189,13 @@ export default function TrackingPage() {
 
   // ── Derived values ────────────────────────────────────────────────────────
   const restaurant  = sessionData?.restaurant;
-  const grandTotal  = orders.reduce((s, o) => s + parseFloat(o.subtotal || 0), 0);
+  const foodTotal   = orders.reduce((s, o) => s + parseFloat(o.subtotal || 0), 0);
   const savings     = sessionData?.couponSavings || 0;
-  const finalTotal  = Math.round(grandTotal - savings);
+  const discounted  = Math.round(foodTotal - savings);  // food after coupon
+  const deliveryFee = DEFAULT_DELIVERY_FEE;
+  const platformFee = PLATFORM_FEE;
+  const gst         = Math.round(discounted * GST_RATE);
+  const finalTotal  = discounted + deliveryFee + gst + platformFee;
   const city        = sessionData?.deliveryCity || '';
   const address     = sessionData?.deliveryAddress || '';
 
@@ -135,6 +217,46 @@ export default function TrackingPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  };
+
+  // Hero content changes with delivery status
+  const heroContent = STATUS_HERO[sessionData?.status] || STATUS_HERO.order_placed;
+
+  // ETA — only show when not yet delivered
+  const etaPill = (() => {
+    const status    = sessionData?.status;
+    const placedAt  = sessionData?.placedAt;
+    const delivMins = restaurant?.deliveryTimeMin;
+    if (!delivMins || status === 'delivered' || !placedAt) return null;
+    const eta = new Date(new Date(placedAt).getTime() + delivMins * 60000);
+    const diffMs = eta - Date.now();
+    if (diffMs < 0) {
+      return status === 'out_for_delivery' ? 'Arriving soon' : null;
+    }
+    const diffMins = Math.ceil(diffMs / 60000);
+    return `~${diffMins} min`;
+  })();
+
+  // Delivery status controls — organizer only
+  const NEXT_STATUS = {
+    order_placed:     { next: 'preparing',        label: 'Mark as Preparing',         icon: '👨‍🍳', color: '#6366f1' },
+    preparing:        { next: 'out_for_delivery',  label: 'Mark as Out for Delivery',  icon: '🛵',  color: '#f59e0b' },
+    out_for_delivery: { next: 'delivered',         label: 'Mark as Delivered',         icon: '🎉',  color: '#10b981' },
+  };
+  const nextStatusDef = NEXT_STATUS[sessionData?.status] || null;
+  const isOrganizer   = me?.isOrganizer || me?.memberId === sessionData?.organizerId;
+
+  const handleAdvanceStatus = async () => {
+    if (!nextStatusDef || !isOrganizer) return;
+    setStatusUpdating(true);
+    try {
+      await updateDeliveryStatus(sessionId, nextStatusDef.next, me.memberId);
+      setSessionData((prev) => prev ? { ...prev, status: nextStatusDef.next } : prev);
+    } catch (err) {
+      alert(err.response?.data?.message || 'Could not update status');
+    } finally {
+      setStatusUpdating(false);
+    }
   };
 
   // ── Loading ───────────────────────────────────────────────────────────────
@@ -174,28 +296,36 @@ export default function TrackingPage() {
       <div style={s.wrapper}>
 
         {/* ── Hero confirmation card ────────────────────────────────────── */}
-        <div style={s.heroCard} className="animate-scale-up">
+        <div style={{
+          ...s.heroCard,
+          background: `linear-gradient(135deg, ${colors.bg.surface} 0%, ${heroContent.cardBg} 100%)`,
+          border:     `1px solid ${heroContent.cardBorder}`,
+        }} className="animate-scale-up">
           <div style={s.heroTop}>
-            <div style={s.checkCircle}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+            <div style={{ ...s.checkCircle, background: heroContent.iconBg }}>
+              {heroContent.icon === '✓' ? (
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
+                <span style={{ fontSize: 24, lineHeight: 1 }}>{heroContent.icon}</span>
+              )}
             </div>
             <div>
-              <h1 style={s.heroTitle}>Order Confirmed!</h1>
-              <p style={s.heroSub}>
-                {restaurant?.name
-                  ? `Ready to order at ${restaurant.name}`
-                  : 'Your group order is locked in'}
-              </p>
+              <h1 style={s.heroTitle}>{heroContent.title}</h1>
+              <p style={s.heroSub}>{heroContent.sub(restaurant)}</p>
             </div>
           </div>
 
           {/* Meta pills */}
           <div style={s.metaRow}>
             {restaurant?.name && (
-              <div style={s.metaPill}>
-                <span>{restaurant.imageEmoji || '🍽️'}</span>
+              <div style={{ ...s.metaPill, padding: restaurant.imageUrl ? '3px 10px 3px 3px' : '5px 10px' }}>
+                {restaurant.imageUrl ? (
+                  <img src={restaurant.imageUrl} alt={restaurant.name} style={{ width: 20, height: 20, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                ) : (
+                  <span>{restaurant.imageEmoji || '🍽️'}</span>
+                )}
                 <span>{restaurant.name}</span>
               </div>
             )}
@@ -209,6 +339,17 @@ export default function TrackingPage() {
               <span>👥</span>
               <span>{orders.length} {orders.length === 1 ? 'person' : 'people'}</span>
             </div>
+            {etaPill && (
+              <div style={{ ...s.metaPill, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.18)', color: '#6366f1' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.8"/><polyline points="12 7 12 12 15 14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                <span>{etaPill}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Order status stepper */}
+          <div style={s.stepperWrap}>
+            <OrderStepper status={sessionData?.status} />
           </div>
         </div>
 
@@ -269,6 +410,35 @@ export default function TrackingPage() {
           </button>
         </div>
 
+        {/* ── Organizer delivery controls ───────────────────────────────── */}
+        {isOrganizer && nextStatusDef && (
+          <div style={s.statusCard} className="animate-fade-up">
+            <p style={s.statusCardTitle}>🔔 Update delivery status</p>
+            <p style={s.statusCardSub}>Let the group know where their food is</p>
+            <button
+              style={{
+                ...s.statusBtn,
+                background: `linear-gradient(135deg, ${nextStatusDef.color} 0%, ${nextStatusDef.color}cc 100%)`,
+                opacity: statusUpdating ? 0.7 : 1,
+              }}
+              onClick={handleAdvanceStatus}
+              disabled={statusUpdating}
+              onMouseEnter={(e) => { if (!statusUpdating) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = ''; }}
+            >
+              <span style={{ fontSize: 16 }}>{nextStatusDef.icon}</span>
+              {statusUpdating ? 'Updating...' : nextStatusDef.label}
+            </button>
+          </div>
+        )}
+        {isOrganizer && !nextStatusDef && sessionData?.status === 'delivered' && (
+          <div style={{ ...s.statusCard, background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)' }} className="animate-fade-up">
+            <p style={{ textAlign: 'center', fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.green.text, margin: 0 }}>
+              🎉 Delivered! The group has been notified.
+            </p>
+          </div>
+        )}
+
         {/* ── Bill summary ──────────────────────────────────────────────── */}
         <div style={s.billCard} className="animate-fade-up">
           <div style={s.billHeader}>
@@ -283,8 +453,8 @@ export default function TrackingPage() {
 
           <div style={s.billRows}>
             <div style={s.billRow}>
-              <span style={s.billLabel}>Subtotal</span>
-              <span style={s.billVal}>₹{Math.round(grandTotal)}</span>
+              <span style={s.billLabel}>Food subtotal</span>
+              <span style={s.billVal}>₹{Math.round(foodTotal)}</span>
             </div>
             {savings > 0 && (
               <div style={s.billRow}>
@@ -294,6 +464,18 @@ export default function TrackingPage() {
                 <span style={{ ...s.billVal, color: colors.green.text }}>−₹{savings}</span>
               </div>
             )}
+            <div style={s.billRow}>
+              <span style={s.billLabel}>Delivery fee</span>
+              <span style={s.billVal}>₹{deliveryFee}</span>
+            </div>
+            <div style={s.billRow}>
+              <span style={s.billLabel}>GST (5%)</span>
+              <span style={s.billVal}>₹{gst}</span>
+            </div>
+            <div style={s.billRow}>
+              <span style={s.billLabel}>Platform fee</span>
+              <span style={s.billVal}>₹{platformFee}</span>
+            </div>
           </div>
 
           {orders.length > 1 && (
@@ -345,11 +527,16 @@ export default function TrackingPage() {
                   </button>
 
                   {isExpanded && (
-                    <div style={{ borderTop: `1px solid ${colors.border.subtle}`, padding: '12px 16px', background: colors.bg.raised }}>
+                    <div style={{ borderTop: `1px solid ${colors.border.subtle}`, padding: '12px 16px', background: colors.bg.raised, display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {(order.items || []).map((item, i) => (
                         <div key={i} style={s.itemRow}>
-                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.veg ? colors.veg : colors.nonVeg, flexShrink: 0 }} />
-                          <span style={s.itemName}>{item.name}</span>
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} style={s.itemThumb} />
+                          ) : null}
+                          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                            <div style={{ width: 7, height: 7, borderRadius: '50%', background: item.veg ? colors.veg : colors.nonVeg, flexShrink: 0 }} />
+                            <span style={s.itemName}>{item.name}</span>
+                          </div>
                           <span style={s.itemQty}>×{item.qty}</span>
                           <span style={s.itemPrice}>₹{item.price * item.qty}</span>
                         </div>
@@ -393,6 +580,7 @@ const s = {
   heroSub:    { fontSize: font.size.sm, color: colors.text.secondary, margin: 0 },
   metaRow:    { display: 'flex', flexWrap: 'wrap', gap: 6 },
   metaPill:   { display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: radius.full, background: colors.bg.raised, border: `1px solid ${colors.border.subtle}`, fontSize: font.size.xs, color: colors.text.secondary, fontWeight: font.weight.medium },
+  stepperWrap:{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${colors.border.subtle}` },
 
   // Actions card
   actionsCard:  { background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius['2xl'], padding: '20px', boxShadow: shadow.card },
@@ -452,10 +640,17 @@ const s = {
   // Orders
   ordersSection: { display: 'flex', flexDirection: 'column' },
   orderHeaderBtn: { display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '14px 16px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: transition.base },
-  itemRow:   { display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0' },
-  itemName:  { flex: 1, fontSize: font.size.sm, color: colors.text.secondary },
-  itemQty:   { fontSize: font.size.sm, color: colors.text.muted, minWidth: 28, textAlign: 'right' },
-  itemPrice: { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.text.primary, minWidth: 52, textAlign: 'right' },
+  itemRow:   { display: 'flex', alignItems: 'center', gap: 8 },
+  itemThumb: { width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0, border: `1px solid ${colors.border.subtle}` },
+  itemName:  { flex: 1, fontSize: font.size.sm, color: colors.text.secondary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  itemQty:   { fontSize: font.size.sm, color: colors.text.muted, minWidth: 28, textAlign: 'right', flexShrink: 0 },
+  itemPrice: { fontSize: font.size.sm, fontWeight: font.weight.semibold, color: colors.text.primary, minWidth: 52, textAlign: 'right', flexShrink: 0 },
+
+  // Delivery status card (organizer only)
+  statusCard:     { background: colors.bg.surface, border: `1px solid ${colors.border.default}`, borderRadius: radius['2xl'], padding: '18px 20px', boxShadow: shadow.card, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
+  statusCardTitle:{ fontSize: font.size.base, fontWeight: font.weight.bold, color: colors.text.primary, margin: 0 },
+  statusCardSub:  { fontSize: font.size.xs, color: colors.text.muted, margin: '0 0 6px' },
+  statusBtn:      { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '13px', borderRadius: radius.lg, color: '#fff', border: 'none', fontFamily: font.family, fontSize: font.size.base, fontWeight: font.weight.bold, cursor: 'pointer', transition: transition.base, boxShadow: '0 4px 16px rgba(0,0,0,0.15)' },
 
   // Back
   homeBtn:   { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '13px', borderRadius: radius.xl, background: 'transparent', color: colors.text.secondary, border: `1px solid ${colors.border.default}`, fontSize: font.size.base, fontWeight: font.weight.medium, cursor: 'pointer', transition: transition.base, marginTop: 4 },

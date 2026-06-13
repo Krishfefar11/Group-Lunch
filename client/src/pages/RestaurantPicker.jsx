@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import API from '../api/api';
+import socket from '../socket/socket.js';
 import { colors, font, radius, shadow, transition } from '../design-system/tokens';
 import AgentPanel from '../components/AgentPanel';
 
@@ -46,13 +47,7 @@ export default function RestaurantPicker() {
   const [urlFocused, setUrlFocused] = useState(false);
   const [urlError,   setUrlError]   = useState('');
 
-  useEffect(() => {
-    const stored = localStorage.getItem(`member_${sessionId}`);
-    if (stored) setMe(JSON.parse(stored));
-    fetchRecommendations();
-  }, [sessionId]);
-
-  const fetchRecommendations = async () => {
+  const fetchRecommendations = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -63,7 +58,33 @@ export default function RestaurantPicker() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionId]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem(`member_${sessionId}`);
+    if (stored) setMe(JSON.parse(stored));
+    fetchRecommendations();
+  }, [sessionId, fetchRecommendations]);
+
+  // Socket: auto-redirect non-organizer members when organizer picks a restaurant
+  useEffect(() => {
+    socket.connect();
+    socket.emit('join_session', sessionId);
+
+    const goMenu     = () => navigate(`/session/${sessionId}/menu`);
+    const goTracking = () => navigate(`/session/${sessionId}/tracking`);
+
+    socket.on('restaurant_selected', goMenu);     // organizer confirmed → everyone goes to menu
+    socket.on('order_placed',        goTracking); // safety net: order placed → tracking
+    socket.on('status_updated',      goTracking); // delivery status → tracking
+
+    return () => {
+      socket.off('restaurant_selected', goMenu);
+      socket.off('order_placed',        goTracking);
+      socket.off('status_updated',      goTracking);
+      socket.disconnect();
+    };
+  }, [sessionId, navigate]);
 
   // Step 1 — organizer clicks "Order from X": open URL prompt
   const handleSelect = (restaurantId) => {
@@ -232,7 +253,6 @@ export default function RestaurantPicker() {
             const r           = item.restaurant;
             const rank        = RANK[index] || RANK[2];
             const isSelecting = selecting === r.id;
-            const imgUrl      = optimiseUrl(r.imageUrl);
 
             // Use Foursquare photo if available, else Cloudinary, else null
             const realPhoto = r.photoUrl || null;

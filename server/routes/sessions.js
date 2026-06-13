@@ -91,6 +91,15 @@ router.post('/:sessionId/join', joinLimiter, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Session not found' });
     }
 
+    // Block new joins once the order is placed / in delivery
+    const CLOSED_STATUSES = ['order_placed', 'preparing', 'out_for_delivery', 'delivered'];
+    if (!memberId && CLOSED_STATUSES.includes(session.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'This session has already placed its order — you can\'t join now.',
+      });
+    }
+
     // If memberId sent, check if already a member (page refresh case)
     if (memberId) {
       const existing = await SessionMember.findOne({
@@ -121,6 +130,51 @@ router.post('/:sessionId/join', joinLimiter, async (req, res) => {
       message: `${memberName.trim()} joined the session`,
       data: { memberId: newMemberId, memberName: memberName.trim(), alreadyJoined: false },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── PATCH /api/sessions/:sessionId/status ─────────────────────────────────
+// Organizer advances the delivery status (order_placed → preparing → out_for_delivery → delivered).
+// Body: { status }   Header: x-organizer-id
+router.patch('/:sessionId/status', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { status }    = req.body;
+    const organizerId   = req.headers['x-organizer-id'];
+
+    const VALID_TRANSITIONS = {
+      order_placed:     'preparing',
+      preparing:        'out_for_delivery',
+      out_for_delivery: 'delivered',
+    };
+
+    if (!status || !Object.values(VALID_TRANSITIONS).includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
+    }
+
+    const session = await Session.findOne({ where: { sessionUuid: sessionId } });
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Session not found' });
+    }
+    if (session.organizerId !== organizerId) {
+      return res.status(403).json({ success: false, message: 'Only the organizer can update delivery status' });
+    }
+    if (VALID_TRANSITIONS[session.status] !== status) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot transition from '${session.status}' to '${status}'`,
+      });
+    }
+
+    await session.update({ status });
+
+    if (req.io) {
+      req.io.to(sessionId).emit('status_updated', { status });
+    }
+
+    res.json({ success: true, data: { status } });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

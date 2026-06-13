@@ -69,7 +69,8 @@ const syncDB = async () => {
       await addColIfMissing('sessions',    'order_url',     'TEXT DEFAULT NULL');
       await addColIfMissing('menu_items',  'image_url', 'TEXT DEFAULT NULL');
       await addColIfMissing('menu_items',  'meal_db_id','VARCHAR(20) DEFAULT NULL');
-      await addColIfMissing('sessions',    'expires_at', 'DATETIME DEFAULT NULL');
+      await addColIfMissing('sessions',    'expires_at',   'DATETIME DEFAULT NULL');
+      await addColIfMissing('order_items', 'image_url',    'TEXT DEFAULT NULL');
 
       log.info('All tables verified');
     }

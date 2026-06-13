@@ -109,7 +109,7 @@ export default function CreateSession() {
               </div>
 
               <label style={s.label}>📍 Your city</label>
-              <div style={{ position: 'relative', marginBottom: 8 }}>
+              <div style={{ position: 'relative', marginBottom: 6 }}>
                 <input
                   style={{ ...s.input, ...(error && !city.trim() ? s.inputError : {}) }}
                   type="text"
@@ -125,10 +125,36 @@ export default function CreateSession() {
                     e.target.style.boxShadow   = 'none';
                   }}
                 />
-                <p style={{ fontSize: '11px', color: colors.text.muted, margin: '5px 0 0', lineHeight: 1.4 }}>
-                  Used to find real restaurants near you
-                </p>
               </div>
+              {/* City quick-fill chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                {['Bangalore', 'Mumbai', 'Delhi', 'Hyderabad', 'Chennai', 'Pune'].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    style={{
+                      padding: '4px 11px',
+                      borderRadius: radius.full,
+                      border: `1px solid ${city === c ? colors.gold.base : colors.border.default}`,
+                      background: city === c ? colors.gold.dim : 'transparent',
+                      color: city === c ? colors.gold.base : colors.text.muted,
+                      fontSize: font.size.xs,
+                      fontWeight: city === c ? font.weight.bold : font.weight.medium,
+                      fontFamily: font.family,
+                      cursor: 'pointer',
+                      transition: transition.fast,
+                    }}
+                    onClick={() => { setCity(c); setError(''); }}
+                    onMouseEnter={(e) => { if (city !== c) { e.currentTarget.style.borderColor = colors.gold.base; e.currentTarget.style.color = colors.gold.base; }}}
+                    onMouseLeave={(e) => { if (city !== c) { e.currentTarget.style.borderColor = colors.border.default; e.currentTarget.style.color = colors.text.muted; }}}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: '11px', color: colors.text.muted, margin: '4px 0 0', lineHeight: 1.4 }}>
+                Used to find real restaurants near you
+              </p>
 
               <label style={{ ...s.label, marginTop: 16 }}>💸 Your UPI ID <span style={{ color: colors.text.muted, fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional — for split bill)</span></label>
               <div style={{ position: 'relative', marginBottom: 8 }}>
@@ -238,7 +264,7 @@ export default function CreateSession() {
 
             <button
               style={s.outlineBtn}
-              onClick={() => window.location.href = `/session/${created.sessionId}`}
+              onClick={() => navigate(`/session/${created.sessionId}`)}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = colors.border.strong; e.currentTarget.style.color = colors.text.primary; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = colors.border.default; e.currentTarget.style.color = colors.text.secondary; }}
             >

@@ -10,7 +10,7 @@ import { io } from 'socket.io-client';
  * user is on a live-data screen. The shared instance means all pages see the
  * same connection state and we never open duplicate sockets.
  */
-const socket = io(process.env.REACT_APP_SERVER_URL || 'http://localhost:8000', {
+const socket = io(process.env.REACT_APP_SERVER_URL || 'https://group-lunch.onrender.com', {
   autoConnect:           false, // pages call socket.connect() themselves
   reconnection:          true,
   reconnectionDelay:     1000,      // first retry after 1 s
