@@ -86,7 +86,7 @@ module.exports = (env, argv) => {
         'process.env.REACT_APP_EMAILJS_SERVICE_ID':  JSON.stringify(process.env.REACT_APP_EMAILJS_SERVICE_ID  || ''),
         'process.env.REACT_APP_EMAILJS_TEMPLATE_ID': JSON.stringify(process.env.REACT_APP_EMAILJS_TEMPLATE_ID || ''),
         'process.env.REACT_APP_EMAILJS_PUBLIC_KEY':  JSON.stringify(process.env.REACT_APP_EMAILJS_PUBLIC_KEY  || ''),
-        'process.env.REACT_APP_SERVER_URL':          JSON.stringify(process.env.REACT_APP_SERVER_URL          || 'http://localhost:8000'),
+        'process.env.REACT_APP_SERVER_URL':          JSON.stringify(process.env.REACT_APP_SERVER_URL          || (isProd ? 'https://group-lunch.onrender.com' : 'http://localhost:8000')),
         'process.env.NODE_ENV':                      JSON.stringify(argv.mode || 'development'),
       }),
 
