@@ -49,7 +49,7 @@ const INJECTED_CSS = `
     .mv-hero { height: 200px !important; }
     .mv-hero-name { font-size: 18px !important; }
     .mv-item-name { font-size: 13px !important; }
-    .mv-thumb-wrap { width: 64px !important; height: 64px !important; }
+    .mv-thumb-wrap { width: 72px !important; height: 72px !important; }
     .mv-menu-body { padding: 0 10px !important; }
     .mv-cart-bar { padding: 10px 14px !important; }
     .mv-suggest-card { width: 148px !important; }
@@ -115,21 +115,61 @@ export default function MenuView() {
     getPhoto(query).then((photo) => { if (photo) setBannerPhoto(photo); });
   }, [restaurant]);
 
-  // Unsplash item thumbnails
+  // Unsplash item thumbnails — only fetch for items that don't already have imageUrl
   useEffect(() => {
     const items = Object.values(menu).flat();
     if (items.length === 0) return;
+
+    // Build a smart query: cuisine-aware so Indian dishes get correct photos
+    const cuisines = (restaurant?.cuisines || []).map((c) => c.toLowerCase());
+    const isIndian  = cuisines.some((c) => ['northindian','southindian','indian','biryani','mughlai','hyderabadi','andhra','punjabi','tamil','chinese','indochinese','asian'].includes(c));
+
+    const smartQuery = (item) => {
+      const n = item.name.toLowerCase();
+      if (n.includes('biryani'))         return 'biryani rice Indian';
+      if (n.includes('dosa'))            return 'dosa South Indian breakfast';
+      if (n.includes('idli'))            return 'idli sambar South Indian';
+      if (n.includes('vada'))            return 'medu vada South Indian';
+      if (n.includes('naan') || n.includes('paratha') || n.includes('roti')) return 'Indian naan flatbread';
+      if (n.includes('paneer'))          return 'paneer Indian curry';
+      if (n.includes('butter chicken') || n.includes('murgh')) return 'butter chicken Indian curry';
+      if (n.includes('dal'))             return 'dal makhani lentil curry';
+      if (n.includes('burger'))          return 'gourmet burger food';
+      if (n.includes('pizza'))           return 'pizza restaurant food';
+      if (n.includes('pasta'))           return 'pasta Italian food';
+      if (n.includes('wrap') || n.includes('burrito')) return 'wrap burrito Mexican food';
+      if (n.includes('fried rice'))      return 'fried rice Chinese';
+      if (n.includes('noodle'))          return 'noodles Chinese food';
+      if (n.includes('wings'))           return 'chicken wings food';
+      if (n.includes('nachos'))          return 'nachos tortilla chips';
+      if (n.includes('fries'))           return 'french fries food';
+      if (n.includes('milkshake') || n.includes('shake')) return 'milkshake dessert';
+      if (n.includes('lava') || n.includes('brownie') || n.includes('chocolate')) return 'chocolate dessert';
+      if (n.includes('cheesecake'))      return 'cheesecake dessert';
+      if (n.includes('pancake'))         return 'pancakes breakfast';
+      if (n.includes('toast'))           return 'avocado toast breakfast';
+      if (n.includes('egg'))             return 'eggs breakfast';
+      if (n.includes('coffee'))          return 'coffee cafe drink';
+      if (n.includes('lassi'))           return 'mango lassi Indian drink';
+      if (isIndian)                      return `${item.name} Indian food`;
+      return `${item.name} food dish`;
+    };
+
+    // Only fetch Unsplash for items that don't already have a seeded imageUrl
+    const itemsNeedingPhoto = items.filter((item) => !item.imageUrl);
+    if (itemsNeedingPhoto.length === 0) return;
+
     Promise.all(
-      items.slice(0, 10).map(async (item) => {
-        const photo = await getPhoto(`${item.name} food dish`);
-        return [item.itemCode, photo ? photoUrl(photo, 'thumb') : null];
+      itemsNeedingPhoto.map(async (item) => {
+        const photo = await getPhoto(smartQuery(item));
+        return [item.itemCode, photo ? photoUrl(photo, 'small') : null];
       })
     ).then((pairs) => {
       const map = {};
       pairs.forEach(([code, url]) => { if (url) map[code] = url; });
       setItemPhotos(map);
     });
-  }, [menu]);
+  }, [menu, restaurant]);
 
   // Set first category as active after load
   useEffect(() => {
@@ -531,7 +571,7 @@ export default function MenuView() {
             <div style={s.itemList} className="mv-items-grid">
               {filteredMenu[category].map((item) => {
                 const qty      = cart[item.itemCode] || 0;
-                const thumbUrl = itemPhotos[item.itemCode];
+                const thumbUrl = item.imageUrl || itemPhotos[item.itemCode];
                 const fallbackEmoji = ITEM_EMO[category] || '🍽️';
                 const inCart   = qty > 0;
 
@@ -817,8 +857,8 @@ const s = {
 
   // ── Item right (image + qty) ──────────────────────────────────────────────
   itemRight:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 },
-  thumbWrap:    { width: 80, height: 80, borderRadius: radius.xl, overflow: 'hidden', flexShrink: 0, border: `1px solid ${colors.border.subtle}` },
-  thumb:        { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  thumbWrap:    { width: 90, height: 90, borderRadius: radius.xl, overflow: 'hidden', flexShrink: 0, border: `1px solid ${colors.border.subtle}`, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
+  thumb:        { width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.25s ease' },
   thumbFallback:{ width: '100%', height: '100%', background: `linear-gradient(135deg, #FFF5E5 0%, #FFE4BA 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   addBtn:       { padding: '7px 14px', borderRadius: radius.md, background: 'transparent', color: colors.text.gold, border: `1.5px solid ${colors.gold.muted}`, fontSize: font.size.xs, fontWeight: font.weight.bold, cursor: 'pointer', letterSpacing: '0.06em', transition: transition.base, fontFamily: font.family, whiteSpace: 'nowrap' },
   qtyControl:   { display: 'flex', alignItems: 'center', gap: 6, background: colors.gold.dim, border: `1.5px solid rgba(240,165,0,0.3)`, borderRadius: radius.md, padding: '4px 8px' },
