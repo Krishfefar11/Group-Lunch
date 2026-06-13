@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-// In production REACT_APP_SERVER_URL = https://group-lunch.onrender.com
-// In development it falls back to localhost:8000
-const BASE = process.env.REACT_APP_SERVER_URL || 'http://localhost:8000';
+// Render backend URL — hardcoded so it works even if the build-time env var
+// is not injected by Vercel's DefinePlugin. Override locally via .env:
+//   REACT_APP_SERVER_URL=http://localhost:8000
+const BASE = process.env.REACT_APP_SERVER_URL || 'https://group-lunch.onrender.com';
 
 // All API calls go through this base instance
 const API = axios.create({
