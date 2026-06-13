@@ -10,7 +10,7 @@
  * Cache is versioned so old entries are evicted on activation.
  */
 
-const CACHE   = 'grouplunch-v3';
+const CACHE   = 'grouplunch-v4';
 const SHELL   = ['/'];          // minimal pre-cache on install
 
 // ── Install ──────────────────────────────────────────────────────────────────
@@ -42,10 +42,12 @@ self.addEventListener('fetch', (event) => {
   // 2. API calls → network only, no caching
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/socket.io/')) return;
 
-  // 3. Hashed static assets (JS / CSS / fonts) → cache-first
+  // 3. JS / CSS / fonts → let the browser use its own HTTP cache (Vercel sets
+  //    Cache-Control: immutable on content-hashed files). The SW must NOT cache
+  //    these — if it does, a stale bundle can survive across deployments when the
+  //    filename stays the same but content changes (e.g. env-var bake-in changes).
   if (/\.(js|css|woff2?)(\?|$)/.test(url.pathname)) {
-    event.respondWith(cacheFirst(request));
-    return;
+    return; // fall through to browser native fetch + HTTP caching
   }
 
   // 4. Images → cache-first (stale-while-revalidate)
